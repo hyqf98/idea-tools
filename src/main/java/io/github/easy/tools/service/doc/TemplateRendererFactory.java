@@ -1,5 +1,7 @@
 package io.github.easy.tools.service.doc;
 
+import io.github.easy.tools.service.doc.ai.AITemplateRenderer;
+import io.github.easy.tools.service.doc.velocity.VelocityTemplateRenderer;
 import io.github.easy.tools.ui.config.DocConfigService;
 
 /**

@@ -3,30 +3,38 @@ package io.github.easy.tools.action.doc.actions;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.psi.PsiFile;
-import io.github.easy.tools.processor.doc.CommentProcessor;
-import org.jetbrains.annotations.NotNull;
+import io.github.easy.tools.service.doc.processor.CommentProcessor;
 
 /**
- * 为当前文件生成注释的动作类
+ * 生成文件注释操作类
  * <p>
- * 该动作类负责为整个Java文件生成注释，会遍历文件中的所有元素（类、方法、字段）
- * 并为每个元素生成相应的文档注释。
+ * 该类继承自AbstractEasyDocAction，实现了为整个Java文件生成注释的功能。
+ * 它会遍历文件中的所有可注释元素，并为它们生成相应的文档注释。
  * </p>
  */
 public class GenerateFileCommentAction extends AbstractEasyDocAction {
 
     /**
-     * 执行动作事件，为整个文件生成注释
+     * 动作执行方法，为整个文件生成注释
+     * <p>
+     * 该方法会在IDEA界面中添加一个菜单项，当用户点击时会执行文件注释生成操作。
+     * 它会获取当前文件信息，然后为文件中的所有可注释元素生成注释。
+     * </p>
      *
-     * @param e 动作事件对象，包含执行上下文信息
+     * @param e 动作事件对象，包含执行环境信息
      */
     @Override
-    public void actionPerformed(@NotNull AnActionEvent e) {
+    public void actionPerformed(AnActionEvent e) {
+        // 获取当前文件
         PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
+
+        // 获取注释处理器
         CommentProcessor processor = this.getProcessor(file);
-        // 1. 使用 processor 生成整个文件的注释
-        if (processor != null && file != null) {
-            processor.generateFileComment(file);
+        if (processor == null) {
+            return;
         }
+
+        // 生成文件注释
+        processor.generateFileComment(file);
     }
 }

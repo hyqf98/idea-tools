@@ -40,7 +40,10 @@
                 parentId="other"
                 instance="io.github.easy.tools.ui.config.DocConfig"
                 id="io.github.easy.tools.ui.config.TemplateConfig"
-                displayName="Easy Tools"/>
+                displayName="Easy Config">
+            <configurable instance="io.github.easy.tools.ui.config.DocConfig" id="io.github.easy.tools.ui.config.BaseTemplateConfig" displayName="Base Template"/>
+            <configurable instance="io.github.easy.tools.ui.config.LLMConfig" id="io.github.easy.tools.ui.config.LLMConfig" displayName="LLM Config"/>
+        </applicationConfigurable>
         <applicationService serviceImplementation="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"/>
         <notificationGroup id="Easy Docs Notification Group"
                            displayType="BALLOON"

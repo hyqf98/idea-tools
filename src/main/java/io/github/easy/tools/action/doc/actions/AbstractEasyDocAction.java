@@ -10,8 +10,8 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.javadoc.PsiDocComment;
-import io.github.easy.tools.processor.doc.CommentProcessor;
-import io.github.easy.tools.processor.doc.JavaCommentProcessor;
+import io.github.easy.tools.service.doc.processor.CommentProcessor;
+import io.github.easy.tools.service.doc.processor.JavaCommentProcessor;
 
 import java.util.HashMap;
 import java.util.List;

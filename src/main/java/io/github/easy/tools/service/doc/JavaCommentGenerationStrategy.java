@@ -276,16 +276,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
     private static abstract class AbstractDocHandler<P extends PsiElement> implements DocHandler<P> {
 
         /**
-         * 获取模板渲染服务实例，用于渲染模板
-         * 每次调用都会获取最新的渲染器实例，以确保配置变更后能使用正确的渲染器
          *
-         * @return 模板渲染器实例
-         */
-        protected TemplateRenderer getTemplateRenderer() {
-            return TemplateRendererFactory.getTemplateRenderer();
-        }
-
-        /**
          * Abstract doc handler
          *
          * @since y.y.y
@@ -479,7 +470,8 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         protected String doGenerateDoc(PsiFile file, PsiClass element, Context context) {
             // 按需获取DocConfigService实例，避免在类初始化时就访问服务
             DocConfigService cfg = DocConfigService.getInstance();
-            return this.getTemplateRenderer().render(cfg.classTemplate, context, element);
+            // 直接获取模板渲染器并渲染模板
+            return TemplateRendererFactory.getTemplateRenderer().render(cfg.classTemplate, context, element);
         }
 
         /**
@@ -519,7 +511,8 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         protected String doGenerateDoc(PsiFile file, PsiMethod element, Context context) {
             // 按需获取DocConfigService实例，避免在类初始化时就访问服务
             DocConfigService cfg = DocConfigService.getInstance();
-            return this.getTemplateRenderer().render(cfg.methodTemplate, context, element);
+            // 直接获取模板渲染器并渲染模板
+            return TemplateRendererFactory.getTemplateRenderer().render(cfg.methodTemplate, context, element);
         }
 
         /**
@@ -539,7 +532,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             List<Map<String, String>> parameters = new ArrayList<>();
             for (PsiParameter parameter : element.getParameterList().getParameters()) {
                 Map<String, String> param = new HashMap<>();
-                param.put(DocConfigService.PARAM_DESCRIPTION, parameter.getName());
+                param.put("name", parameter.getName());
                 param.put("description", parameter.getType().getPresentableText());
                 parameters.add(param);
             }
@@ -571,7 +564,8 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         protected String doGenerateDoc(PsiFile file, PsiField element, Context context) {
             // 按需获取DocConfigService实例，避免在类初始化时就访问服务
             DocConfigService cfg = DocConfigService.getInstance();
-            return this.getTemplateRenderer().render(cfg.fieldTemplate, context, element);
+            // 直接获取模板渲染器并渲染模板
+            return TemplateRendererFactory.getTemplateRenderer().render(cfg.fieldTemplate, context, element);
         }
 
         /**

@@ -1,8 +1,7 @@
-package io.github.easy.tools.processor.doc;
+package io.github.easy.tools.service.doc.processor;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import io.github.easy.tools.factory.doc.CommentGenerationStrategyFactory;
 import io.github.easy.tools.service.doc.CommentGenerationStrategy;
 import io.github.easy.tools.service.doc.JavaCommentGenerationStrategy;
 
@@ -21,8 +20,8 @@ import io.github.easy.tools.service.doc.JavaCommentGenerationStrategy;
  */
 public class JavaCommentProcessor implements CommentProcessor {
 
-    /** Comment generation strategy factory */
-    private final CommentGenerationStrategyFactory commentGenerationStrategyFactory;
+    /** Comment generation strategy */
+    private final CommentGenerationStrategy commentGenerationStrategy;
 
     /**
      * Java comment processor
@@ -30,7 +29,7 @@ public class JavaCommentProcessor implements CommentProcessor {
      * @since y.y.y
      */
     public JavaCommentProcessor() {
-        this.commentGenerationStrategyFactory = new CommentGenerationStrategyFactory();
+        this.commentGenerationStrategy = new JavaCommentGenerationStrategy();
     }
 
     /**
@@ -44,10 +43,8 @@ public class JavaCommentProcessor implements CommentProcessor {
      */
     @Override
     public void removeFileComment(PsiFile file) {
-        // 1. 获取合适的生成策略（如Java）
-        CommentGenerationStrategy strategy = this.commentGenerationStrategyFactory.getStrategy(file);
-        // 2. 执行删除逻辑
-        strategy.remove(file);
+        // 执行删除逻辑
+        commentGenerationStrategy.remove(file);
     }
 
     /**
@@ -62,10 +59,8 @@ public class JavaCommentProcessor implements CommentProcessor {
      */
     @Override
     public void removeElementComment(PsiFile file, PsiElement element) {
-        // 1. 获取合适的生成策略（如Java）
-        CommentGenerationStrategy strategy = this.commentGenerationStrategyFactory.getStrategy(file);
-        // 2. 执行删除逻辑
-        strategy.remove(file, element);
+        // 执行删除逻辑
+        commentGenerationStrategy.remove(file, element);
     }
 
     /**
@@ -80,13 +75,11 @@ public class JavaCommentProcessor implements CommentProcessor {
      */
     @Override
     public void generateFileComment(PsiFile file, boolean overwrite) {
-        // 1. 获取合适的生成策略（如Java）
-        CommentGenerationStrategy strategy = this.commentGenerationStrategyFactory.getStrategy(file);
-        // 2. 执行生成逻辑
-        if (strategy instanceof JavaCommentGenerationStrategy javaStrategy) {
+        // 执行生成逻辑
+        if (commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
             javaStrategy.generate(file, overwrite);
         } else {
-            strategy.generate(file);
+            commentGenerationStrategy.generate(file);
         }
     }
 
@@ -103,13 +96,11 @@ public class JavaCommentProcessor implements CommentProcessor {
      */
     @Override
     public void generateElementComment(PsiFile file, PsiElement element, boolean overwrite) {
-        // 1. 获取合适的生成策略（如Java）
-        CommentGenerationStrategy strategy = this.commentGenerationStrategyFactory.getStrategy(file);
-        // 2. 执行生成逻辑
-        if (strategy instanceof JavaCommentGenerationStrategy javaStrategy) {
+        // 执行生成逻辑
+        if (commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
             javaStrategy.generate(file, element, overwrite);
         } else {
-            strategy.generate(file, element);
+            commentGenerationStrategy.generate(file, element);
         }
     }
 

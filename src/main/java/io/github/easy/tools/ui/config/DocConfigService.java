@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * 持久化配置服务类，用于管理插件的各种配置参数
  * <p>
- * 该类负责存储和管理插件的配置信息，包括AI相关配置、模板配置和自定义参数等。
+ * 该类负责存储和管理插件的配置信息，包括模板配置和自定义参数等。
  * 通过IntelliJ Platform的持久化机制，配置信息会在IDE重启后保持不变。
  * </p>
  *
@@ -85,6 +85,36 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
      * AI模型API密钥
      */
     public String apiKey = "";
+    
+    /**
+     * 请求超时时间（毫秒）
+     */
+    public int timeout = 300000;
+    
+    /**
+     * 温度参数，控制生成文本的随机性
+     */
+    public double temperature = 0.7;
+    
+    /**
+     * Top-p参数，控制生成文本的多样性
+     */
+    public double topP = 1.0;
+    
+    /**
+     * Top-k参数，控制生成文本的多样性
+     */
+    public int topK = 40;
+    
+    /**
+     * 是否开启思考模式
+     */
+    public boolean enableReasoning = false;
+    
+    /**
+     * 最大生成令牌数
+     */
+    public int maxTokens = 2048;
 
     /**
      * 类注释模板
