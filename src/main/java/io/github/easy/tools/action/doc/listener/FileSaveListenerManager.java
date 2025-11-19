@@ -15,9 +15,9 @@ import java.util.List;
  * 用于动态注册和注销文件保存监听器，根据配置动态控制监听器的启用和禁用
  * </p>
  *
- * @author zhonghaijun
+ * iamxiaohaijun
  * @version 1.0.0
- * @email "mailto:zhonghaijun@zhxx.com"
+ * @email "mailto:iamxiaohaijun@gmail.com"
  * @date 2025.09.17 16:14
  * @since y.y.y
  */

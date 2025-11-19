@@ -12,9 +12,9 @@ import io.github.easy.tools.service.doc.JavaCommentGenerationStrategy;
  * 并执行相应的注释生成或删除操作。
  * </p>
  *
- * @author zhonghaijun
+ * iamxiaohaijun
  * @version 1.0.0
- * @email "mailto:zhonghaijun@zhxx.com"
+ * @email "mailto:iamxiaohaijun@gmail.com"
  * @date 2025.09.17 14:44
  * @since y.y.y
  */
@@ -44,7 +44,7 @@ public class JavaCommentProcessor implements CommentProcessor {
     @Override
     public void removeFileComment(PsiFile file) {
         // 执行删除逻辑
-        commentGenerationStrategy.remove(file);
+        this.commentGenerationStrategy.remove(file);
     }
 
     /**
@@ -60,7 +60,7 @@ public class JavaCommentProcessor implements CommentProcessor {
     @Override
     public void removeElementComment(PsiFile file, PsiElement element) {
         // 执行删除逻辑
-        commentGenerationStrategy.remove(file, element);
+        this.commentGenerationStrategy.remove(file, element);
     }
 
     /**
@@ -76,10 +76,10 @@ public class JavaCommentProcessor implements CommentProcessor {
     @Override
     public void generateFileComment(PsiFile file, boolean overwrite) {
         // 执行生成逻辑
-        if (commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
+        if (this.commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
             javaStrategy.generate(file, overwrite);
         } else {
-            commentGenerationStrategy.generate(file);
+            this.commentGenerationStrategy.generate(file);
         }
     }
 
@@ -97,10 +97,10 @@ public class JavaCommentProcessor implements CommentProcessor {
     @Override
     public void generateElementComment(PsiFile file, PsiElement element, boolean overwrite) {
         // 执行生成逻辑
-        if (commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
+        if (this.commentGenerationStrategy instanceof JavaCommentGenerationStrategy javaStrategy) {
             javaStrategy.generate(file, element, overwrite);
         } else {
-            commentGenerationStrategy.generate(file, element);
+            this.commentGenerationStrategy.generate(file, element);
         }
     }
 

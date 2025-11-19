@@ -30,7 +30,7 @@ import java.util.Objects;
  *
  * @author haijun
  * @version x.x.x
- * @email "mailto:zhonghaijun@zhxx.com"
+ * @email "mailto:iamxiaohaijun@gmail.com"
  * @date 2025.09.12 09:24
  * @since x.x.x
  */

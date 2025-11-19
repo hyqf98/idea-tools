@@ -22,9 +22,9 @@ import java.util.Map;
  * 通过IntelliJ Platform的持久化机制，配置信息会在IDE重启后保持不变。
  * </p>
  *
- * @author zhonghaijun
+ * iamxiaohaijun
  * @version 1.0.0
- * @email "mailto:zhonghaijun@zhxx.com"
+ * @email "mailto:iamxiaohaijun@gmail.com"
  * @date 2025.09.18 17:22
  * @since y.y.y
  */
@@ -85,32 +85,32 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
      * AI模型API密钥
      */
     public String apiKey = "";
-    
+
     /**
      * 请求超时时间（毫秒）
      */
     public int timeout = 300000;
-    
+
     /**
      * 温度参数，控制生成文本的随机性
      */
     public double temperature = 0.7;
-    
+
     /**
      * Top-p参数，控制生成文本的多样性
      */
     public double topP = 1.0;
-    
+
     /**
      * Top-k参数，控制生成文本的多样性
      */
     public int topK = 40;
-    
+
     /**
      * 是否开启思考模式
      */
     public boolean enableReasoning = false;
-    
+
     /**
      * 最大生成令牌数
      */
@@ -262,13 +262,13 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
         Map<String, String> parameters = new LinkedHashMap<>();
 
         // 添加类模板参数
-        parameters.putAll(getClassTemplateParameters());
+        parameters.putAll(this.getClassTemplateParameters());
 
         // 添加方法模板参数
-        parameters.putAll(getMethodTemplateParameters());
+        parameters.putAll(this.getMethodTemplateParameters());
 
         // 添加字段模板参数
-        parameters.putAll(getFieldTemplateParameters());
+        parameters.putAll(this.getFieldTemplateParameters());
 
         return parameters;
     }

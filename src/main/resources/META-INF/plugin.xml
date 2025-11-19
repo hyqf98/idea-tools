@@ -13,13 +13,22 @@
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-      Easy Tools for IntelliJ IDEA - Enhancing Java development with powerful documentation capabilities.<br/>
+      Easy Tools for IntelliJ IDEA - Enhancing Java development with powerful documentation capabilities and API management.<br/>
       Features include:<br/>
       - Customizable JavaDoc templates (class, field, method)<br/>
       - Context menu actions for generating/removing comments<br/>
       - Velocity template engine support<br/>
       - Extensible architecture for future enhancements<br/>
       - Property name conversion utilities<br/>
+      - API interface management with Spring MVC and Swagger/OpenAPI annotation support<br/>
+      &nbsp;&nbsp;* Scan and display all REST APIs in your project<br/>
+      &nbsp;&nbsp;* Display Controller descriptions from Swagger/OpenAPI annotations<br/>
+      &nbsp;&nbsp;* Group APIs by Controller for better organization<br/>
+      &nbsp;&nbsp;* Support for @RestController, @Controller, and various HTTP method annotations<br/>
+      &nbsp;&nbsp;* Support for Swagger/OpenAPI annotations (@Operation, @Tag, etc.)<br/>
+      &nbsp;&nbsp;* Recursive annotation processing for meta-annotations<br/>
+      &nbsp;&nbsp;* Search and filter APIs by name, URL, method, or class<br/>
+      &nbsp;&nbsp;* Quick API search with Ctrl+\ shortcut for fast navigation<br/>
     ]]></description>
 
     <!-- Product and plugin compatibility requirements. -->
@@ -28,6 +37,39 @@
 
     <!-- Plugin metadata -->
     <change-notes><![CDATA[
+    Added API management functionality:<br/>
+    - API interface management panel in IDEA's right sidebar<br/>
+    - Spring MVC annotation support (@RestController, @Controller, @RequestMapping, etc.)<br/>
+    - Recursive annotation processing for meta-annotations<br/>
+    - Support for custom composite annotations (e.g., @RestControllerWrapper)<br/>
+    - Support for Swagger/OpenAPI annotations (@Operation, @Tag, etc.)<br/>
+    - Display Controller descriptions from Swagger/OpenAPI annotations<br/>
+    - Group APIs by Controller in tree structure view<br/>
+    - Fixed API path parameter display issues (missing closing braces)<br/>
+    - Fixed double-click navigation issue in tree view<br/>
+    - Fixed plugin startup and navigation issues by removing PSI element serialization<br/>
+    - Fixed tree node object handling for proper navigation<br/>
+    - Fixed custom tree node implementation to properly store and retrieve API info<br/>
+    - Fixed infinite recursion issue when processing circular annotation references<br/>
+    - Fixed thread safety issues when accessing PSI elements<br/>
+    - Implemented incremental scanning with real-time UI updates<br/>
+    - Search and filter APIs by name, URL, method, or class<br/>
+    - Double-click to navigate to the corresponding Java method<br/>
+    - Refactored annotation processing logic into separate adapter classes for better extensibility<br/>
+    - Added quick API search dialog with Ctrl+\ shortcut<br/>
+    - Fixed API search dialog to only show results after typing<br/>
+    - Fixed keyboard navigation issues in API search dialog<br/>
+    - Optimized API search dialog UI to dynamically show/hide result panel<br/>
+    - Improved API search performance with debouncing and parallel processing<br/>
+    - Fixed API search dialog startup performance issues<br/>
+    - Adjusted API search result list height for better visibility<br/>
+    - Removed OK/Cancel buttons from API search dialog<br/>
+    - Fixed API search to automatically trigger on typing without requiring Enter key<br/>
+    - Fixed API data loading issues in search dialog<br/>
+    - Fixed API data loading consistency between search dialog and management panel<br/>
+    - Fixed thread pool rejection issues in API search dialog<br/>
+    - Fixed API search dialog show method execution timing<br/>
+    <br/>
     Added property name conversion functionality:<br/>
     - Convert selected property names between different formats<br/>
     - Context menu action for property conversion<br/>
@@ -48,6 +90,11 @@
         <notificationGroup id="Easy Docs Notification Group"
                            displayType="BALLOON"
                            key="notification.group.name"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="API Manager" secondary="true" anchor="right"
+                    factoryClass="io.github.easy.tools.ui.api.ApiManagerToolWindowFactory"/>
     </extensions>
 
     <applicationListeners>
@@ -89,5 +136,13 @@
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift U"/>
             </action>
         </group>
+        
+        <!-- API搜索动作 -->
+        <action id="ApiSearchAction" 
+                class="io.github.easy.tools.action.api.ApiSearchAction" 
+                text="API搜索" 
+                description="搜索并跳转到API接口">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl BACK_SLASH"/>
+        </action>
     </actions>
 </idea-plugin>
