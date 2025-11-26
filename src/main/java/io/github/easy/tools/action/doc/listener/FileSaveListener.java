@@ -76,7 +76,7 @@ public class FileSaveListener implements FileDocumentManagerListener {
             return;
         }
 
-        // 获取注释处理器并异步生成注释
+        // 获取注释处理器并异步生成注释（默认使用Velocity模板方式）
         CommentProcessor processor = PROCESSOR_MAP.get(virtualFile.getFileType().getName());
         if (processor != null) {
             // 使用invokeLater将PSI修改操作推迟到保存操作完成后
@@ -87,7 +87,7 @@ public class FileSaveListener implements FileDocumentManagerListener {
                     // 如果文档尚未提交，则先提交文档
                     psiDocumentManager.commitDocument(document);
                 }
-                // 只有当元素没有注释时才生成注释
+                // 只有当元素没有注释时才生成注释（使用Velocity模板方式）
                 processor.generateFileComment(psiFile, false);
             });
         }

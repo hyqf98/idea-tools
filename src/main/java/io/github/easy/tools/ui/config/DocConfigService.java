@@ -50,10 +50,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     /** 参数名称key */
     public static final String PARAM_PARAMETER_NAME = "parameterName";
 
-    /**
-     * 是否启用AI功能
-     */
-    public boolean enableAi = false;
+
 
     /**
      * AI模型的基础URL

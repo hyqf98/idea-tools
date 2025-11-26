@@ -96,6 +96,14 @@
                     description="当前元素生成注释">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt J"/>
             </action>
+            <action id="GenerateFileCommentByAiAction"
+                    class="io.github.easy.tools.action.doc.actions.GenerateFileCommentByAiAction"
+                    text="当前文件生成注释(AI)"
+                    description="使用AI为当前文件生成注释"/>
+            <action id="GenerateElementCommentByAiAction"
+                    class="io.github.easy.tools.action.doc.actions.GenerateElementCommentByAiAction"
+                    text="当前元素生成注释(AI)"
+                    description="使用AI为当前元素生成注释"/>
             <action id="RemoveElementCommentsAction"
                     class="io.github.easy.tools.action.doc.actions.RemoveElementCommentsAction"
                     text="删除当前元素注释"

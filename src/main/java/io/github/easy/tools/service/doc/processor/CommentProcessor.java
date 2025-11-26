@@ -57,4 +57,19 @@ public interface CommentProcessor {
      * @param element 需要生成注释的元素
      */
     void generateElementComment(PsiFile file, PsiElement element);
+
+    /**
+     * 使用AI生成整个文件的注释
+     *
+     * @param file 需要生成注释的文件
+     */
+    void generateFileCommentByAi(PsiFile file);
+
+    /**
+     * 使用AI生成指定元素的注释
+     *
+     * @param file    需要生成注释的文件
+     * @param element 需要生成注释的元素
+     */
+    void generateElementCommentByAi(PsiFile file, PsiElement element);
 }
