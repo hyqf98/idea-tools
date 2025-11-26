@@ -1,11 +1,13 @@
 package io.github.easy.tools.action.doc.listener;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import io.github.easy.tools.service.doc.processor.CommentProcessor;
@@ -74,10 +76,20 @@ public class FileSaveListener implements FileDocumentManagerListener {
             return;
         }
 
-        // 获取注释处理器并生成注释
+        // 获取注释处理器并异步生成注释
         CommentProcessor processor = PROCESSOR_MAP.get(virtualFile.getFileType().getName());
         if (processor != null) {
-            processor.generateFileComment(psiFile, false);
+            // 使用invokeLater将PSI修改操作推迟到保存操作完成后
+            ApplicationManager.getApplication().invokeLater(() -> {
+                // 确保文档已经提交到PSI
+                PsiDocumentManager psiDocumentManager = PsiDocumentManager.getInstance(project);
+                if (!psiDocumentManager.isCommitted(document)) {
+                    // 如果文档尚未提交，则先提交文档
+                    psiDocumentManager.commitDocument(document);
+                }
+                // 只有当元素没有注释时才生成注释
+                processor.generateFileComment(psiFile, false);
+            });
         }
     }
 }

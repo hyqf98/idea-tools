@@ -1,7 +1,5 @@
 package io.github.easy.tools.entity.api;
 
-import lombok.Data;
-
 /**
  * API信息实体类
  * 用于存储和传递API接口的相关信息
@@ -10,7 +8,6 @@ import lombok.Data;
  * @version 1.0.0
  * @since 2025.11.18
  */
-@Data
 public class ApiInfo {
     /**
      * API接口名称
@@ -66,4 +63,148 @@ public class ApiInfo {
      * 偏移量以文件开头为0计算的字符位置
      */
     private int methodOffset;
+
+    /**
+     * 获取API接口名称
+     *
+     * @return API接口名称
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * 设置API接口名称
+     *
+     * @param name API接口名称
+     */
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    /**
+     * 获取API接口地址
+     *
+     * @return API接口地址
+     */
+    public String getUrl() {
+        return url;
+    }
+
+    /**
+     * 设置API接口地址
+     *
+     * @param url API接口地址
+     */
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    /**
+     * 获取接口方法类型
+     *
+     * @return 接口方法类型
+     */
+    public String getMethod() {
+        return method;
+    }
+
+    /**
+     * 设置接口方法类型
+     *
+     * @param method 接口方法类型
+     */
+    public void setMethod(String method) {
+        this.method = method;
+    }
+
+    /**
+     * 获取所属Controller类的完全限定名
+     *
+     * @return 所属Controller类的完全限定名
+     */
+    public String getClassName() {
+        return className;
+    }
+
+    /**
+     * 设置所属Controller类的完全限定名
+     *
+     * @param className 所属Controller类的完全限定名
+     */
+    public void setClassName(String className) {
+        this.className = className;
+    }
+
+    /**
+     * 获取Controller描述
+     *
+     * @return Controller描述
+     */
+    public String getControllerDescription() {
+        return controllerDescription;
+    }
+
+    /**
+     * 设置Controller描述
+     *
+     * @param controllerDescription Controller描述
+     */
+    public void setControllerDescription(String controllerDescription) {
+        this.controllerDescription = controllerDescription;
+    }
+
+    /**
+     * 获取方法名
+     *
+     * @return 方法名
+     */
+    public String getMethodName() {
+        return methodName;
+    }
+
+    /**
+     * 设置方法名
+     *
+     * @param methodName 方法名
+     */
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
+    }
+
+    /**
+     * 获取方法所在的虚拟文件路径
+     *
+     * @return 方法所在的虚拟文件路径
+     */
+    public String getVirtualFilePath() {
+        return virtualFilePath;
+    }
+
+    /**
+     * 设置方法所在的虚拟文件路径
+     *
+     * @param virtualFilePath 方法所在的虚拟文件路径
+     */
+    public void setVirtualFilePath(String virtualFilePath) {
+        this.virtualFilePath = virtualFilePath;
+    }
+
+    /**
+     * 获取方法在文件中的偏移量
+     *
+     * @return 方法在文件中的偏移量
+     */
+    public int getMethodOffset() {
+        return methodOffset;
+    }
+
+    /**
+     * 设置方法在文件中的偏移量
+     *
+     * @param methodOffset 方法在文件中的偏移量
+     */
+    public void setMethodOffset(int methodOffset) {
+        this.methodOffset = methodOffset;
+    }
 }

@@ -16,50 +16,39 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 持久化配置服务类，用于管理插件的各种配置参数
+ * 文档配置服务类
  * <p>
- * 该类负责存储和管理插件的配置信息，包括模板配置和自定义参数等。
- * 通过IntelliJ Platform的持久化机制，配置信息会在IDE重启后保持不变。
+ * 该类负责管理文档生成相关的配置信息，包括模板、自定义参数等。
+ * 使用IntelliJ平台的持久化机制来保存和加载配置。
  * </p>
- *
- * iamxiaohaijun
- * @version 1.0.0
- * @email "mailto:iamxiaohaijun@gmail.com"
- * @date 2025.09.18 17:22
- * @since y.y.y
  */
-@State(
-        name = "EasyToolsConfig",
-        storages = @Storage("easy-tools-config.xml")
-)
-public class DocConfigService implements PersistentStateComponent<DocConfigService> {
+@State(name = "EasyDocConfig", storages = @Storage("easy-doc-config.xml"))
+public final class DocConfigService implements PersistentStateComponent<DocConfigService> {
 
-    /** PARAM_AUTHOR */
+    /** 作者参数名 */
     public static final String PARAM_AUTHOR = "author";
-    /** PARAM_DATE */
+    /** 日期参数名 */
     public static final String PARAM_DATE = "date";
-    /** PARAM_VERSION */
+    /** 版本参数名 */
     public static final String PARAM_VERSION = "version";
-    /** PARAM_STR */
-    public static final String PARAM_STR = "str";
-
-    /** PARAM_DESCRIPTION */
+    /** 描述参数名 */
     public static final String PARAM_DESCRIPTION = "description";
-
-    /** PARAM_SINCE */
+    /** 起始版本参数名 */
     public static final String PARAM_SINCE = "since";
-
-    /** PARAM_PARAMETERS */
+    /** 字符串工具类参数名 */
+    public static final String PARAM_STR = "str";
+    /** 参数列表参数名 */
     public static final String PARAM_PARAMETERS = "parameters";
-
-    /** PARAM_RETURN_TYPE */
+    /** 返回值类型参数名 */
     public static final String PARAM_RETURN_TYPE = "returnType";
-
-    /** PARAM_EXCEPTIONS */
+    /** 异常列表参数名 */
     public static final String PARAM_EXCEPTIONS = "exceptions";
-
-    /** PARAM_FIELD_NAME */
+    /** 字段名称参数名 */
     public static final String PARAM_FIELD_NAME = "fieldName";
+    /** 字段类型参数名 */
+    public static final String PARAM_FIELD_TYPE = "fieldType";
+    /** 参数名称key */
+    public static final String PARAM_PARAMETER_NAME = "parameterName";
 
     /**
      * 是否启用AI功能
@@ -116,13 +105,14 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
      */
     public int maxTokens = 2048;
 
-    /**
-     * 类注释模板
-     */
-    public String classTemplate = """
+    /** 类注释模板默认值 */
+    public static final String DEFAULT_CLASS_TEMPLATE = """
             /**
              * ${description}
              *
+             #foreach( $param in $parameters )
+             * @param $param.name $param.parameterName
+             #end
              * @author ${author}
              * @date ${date}
              * @version ${version}
@@ -130,36 +120,44 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
              */
             """;
 
-    /**
-     * 方法注释模板
-     */
-    public String methodTemplate = """
+    /** 方法注释模板默认值 */
+    public static final String DEFAULT_METHOD_TEMPLATE = """
             /**
              * ${description}
              *
              #foreach( $param in $parameters )
-             * @param $param.name $param.description
+             * @param $param.name $param.parameterName
              #end
-             #if( $returnType )
+             #if( $returnType && $returnType != "" )
              * @return $returnType
              #end
              #foreach( $exception in $exceptions )
              * @throws $exception
              #end
-             * @author ${author}
-             * @date ${date}
-             * @version ${version}
+             */
+            """;
+
+    /** 字段注释模板默认值 */
+    public static final String DEFAULT_FIELD_TEMPLATE = """
+            /**
+             * ${fieldName}
              */
             """;
 
     /**
+     * 类注释模板
+     */
+    public String classTemplate = DEFAULT_CLASS_TEMPLATE;
+
+    /**
+     * 方法注释模板
+     */
+    public String methodTemplate = DEFAULT_METHOD_TEMPLATE;
+
+    /**
      * 字段注释模板
      */
-    public String fieldTemplate = """
-            /**
-             * The ${fieldName}.
-             */
-            """;
+    public String fieldTemplate = DEFAULT_FIELD_TEMPLATE;
 
     /**
      * 自定义变量字符串形式
@@ -188,10 +186,25 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
     public List<TemplateParameter> getBaseParameters() {
         String author = System.getProperty("user.name");
         List<TemplateParameter> list = new LinkedList<>();
-        TemplateParameter<String> author1 = new TemplateParameter<>(PARAM_AUTHOR, author, "作者");
-        TemplateParameter<String> date = new TemplateParameter<>(PARAM_DATE, DateUtil.now(), "日期");
-        TemplateParameter<String> version = new TemplateParameter<>(PARAM_VERSION, "1.0.0", "版本");
-        TemplateParameter<Class<StrUtil>> str = new TemplateParameter<>(PARAM_STR, StrUtil.class, "字符串工具类");
+        TemplateParameter<String> author1 = new TemplateParameter<>();
+        author1.setName(PARAM_AUTHOR);
+        author1.setValue(author);
+        author1.setDescription("作者");
+
+        TemplateParameter<String> date = new TemplateParameter<>();
+        date.setName(PARAM_DATE);
+        date.setValue(DateUtil.now());
+        date.setDescription("日期");
+
+        TemplateParameter<String> version = new TemplateParameter<>();
+        version.setName(PARAM_VERSION);
+        version.setValue("1.0.0");
+        version.setDescription("版本");
+
+        TemplateParameter<String> str = new TemplateParameter<>();
+        str.setName(PARAM_STR);
+        str.setValue(StrUtil.class.getName()); // 改为使用类名字符串而不是Class对象
+        str.setDescription("字符串工具类");
 
         list.add(author1);
         list.add(date);
@@ -213,6 +226,7 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
         parameters.put(PARAM_VERSION, "版本号");
         parameters.put(PARAM_DESCRIPTION, "类描述（默认为类名）");
         parameters.put(PARAM_SINCE, "起始版本");
+        parameters.put(PARAM_PARAMETERS, "泛型类型参数列表（包含name和parameterName，name格式为<T>）");
         parameters.put(PARAM_STR, "Hutool字符串工具类");
         return parameters;
     }
@@ -229,7 +243,7 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
         parameters.put(PARAM_DATE, "当前日期");
         parameters.put(PARAM_VERSION, "版本号");
         parameters.put(PARAM_DESCRIPTION, "方法描述（默认为方法名+method）");
-        parameters.put(PARAM_PARAMETERS, "方法参数列表（包含name和description）");
+        parameters.put(PARAM_PARAMETERS, "方法参数列表（包含name和parameterName，泛型参数name格式为<T>）");
         parameters.put(PARAM_RETURN_TYPE, "返回值类型");
         parameters.put(PARAM_EXCEPTIONS, "抛出的异常列表");
         parameters.put(PARAM_STR, "Hutool字符串工具类");
@@ -248,6 +262,7 @@ public class DocConfigService implements PersistentStateComponent<DocConfigServi
         parameters.put(PARAM_DATE, "当前日期");
         parameters.put(PARAM_VERSION, "版本号");
         parameters.put(PARAM_FIELD_NAME, "字段名称");
+        parameters.put(PARAM_FIELD_TYPE, "字段类型");
         parameters.put(PARAM_STR, "Hutool字符串工具类");
         return parameters;
     }

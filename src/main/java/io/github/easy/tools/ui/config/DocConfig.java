@@ -24,6 +24,7 @@ import java.awt.Dimension;
 import java.awt.Insets;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * <p> 配置界面类，实现Configurable接口，用于在IDEA设置中展示和管理文档模板配置 </p>
@@ -56,43 +57,48 @@ public class DocConfig implements Configurable {
     private JTextArea fieldTemplate;
 
     /**
-     * 内置变量面板
-     */
-    private JScrollPane varContent;
-
-    /**
-     * 内置变量描述文本框
-     */
-    private JTextPane varDesc;
-
-    /**
-     * 自定义变量面板
-     */
-    private JScrollPane customContent;
-
-    /**
-     * 自定义变量文本区域
-     */
-    private JTextArea customVar;
-
-    /**
-     * 类配置面板
+     * 类模板内容面板
      */
     private JScrollPane classContent;
 
     /**
-     * 方法配置面板
+     * 方法模板内容面板
      */
     private JScrollPane methodContent;
 
     /**
-     * 字段配置面板
+     * 字段模板内容面板
      */
     private JScrollPane fieldContent;
 
-    /** Advanced features content */
+    /**
+     * 内置变量说明内容面板
+     */
+    private JScrollPane varContent;
+
+    /**
+     * 内置变量说明文本框
+     */
+    private JTextPane varDesc;
+
+    /**
+     * 自定义变量内容面板
+     */
+    private JScrollPane customContent;
+
+    /**
+     * 自定义变量文本框
+     */
+    private JTextArea customVar;
+
+    /**
+     * 高级特性内容面板
+     */
     private JPanel advancedFeaturesContent;
-    /** Save listener */
+
+    /**
+     * 保存监听复选框
+     */
     private JCheckBox saveListener;
 
     /**
@@ -113,6 +119,17 @@ public class DocConfig implements Configurable {
     }
 
     /**
+     * 获取帮助主题
+     *
+     * @return 帮助主题 help topic
+     * @since y.y.y
+     */
+    @Override
+    public @Nullable String getHelpTopic() {
+        return null;
+    }
+
+    /**
      * 创建配置组件
      *
      * @return 配置界面的主面板组件 j component
@@ -122,45 +139,24 @@ public class DocConfig implements Configurable {
     public @Nullable JComponent createComponent() {
         this.initTemplateText();
         this.initEventListeners();
-        // 初始化时调整文本面板大小
         return this.mainPanel;
-    }
-
-    /**
-     * 强制重新计算布局和绘制
-     *
-     * @since y.y.y
-     */
-    private void repaint() {
-        SwingUtilities.invokeLater(() -> {
-            this.classContent.revalidate();
-            this.classContent.repaint();
-            this.methodContent.revalidate();
-            this.methodContent.repaint();
-            this.fieldContent.revalidate();
-            this.fieldContent.repaint();
-
-            // 触发主面板的重新布局
-            this.mainPanel.revalidate();
-            this.mainPanel.repaint();
-        });
     }
 
     /**
      * 检查配置是否被修改
      *
-     * @return 如果配置被修改返回true ，否则返回false
+     * @return 如果配置被修改返回true，否则返回false is modified
      * @since y.y.y
      */
     @Override
     public boolean isModified() {
         DocConfigService config = DocConfigService.getInstance();
-        return this.isModified
-                || !Objects.equals(config.classTemplate, this.classTemplate.getText())
-                || !Objects.equals(config.methodTemplate, this.methodTemplate.getText())
-                || !Objects.equals(config.fieldTemplate, this.fieldTemplate.getText())
-                || !Objects.equals(config.customVar, this.customVar.getText())
-                || config.saveListener != this.saveListener.isSelected();
+        return this.isModified ||
+                !Objects.equals(this.classTemplate.getText(), config.classTemplate) ||
+                !Objects.equals(this.methodTemplate.getText(), config.methodTemplate) ||
+                !Objects.equals(this.fieldTemplate.getText(), config.fieldTemplate) ||
+                !Objects.equals(this.customVar.getText(), config.customVar) ||
+                this.saveListener.isSelected() != config.saveListener;
     }
 
     /**
@@ -178,15 +174,32 @@ public class DocConfig implements Configurable {
         config.methodTemplate = this.methodTemplate.getText();
         config.fieldTemplate = this.fieldTemplate.getText();
         config.customVar = this.customVar.getText();
+
+        // 清空现有的自定义参数列表
+        config.customParameters.clear();
+
+        // 如果自定义变量不为空，则解析并添加到参数列表中
         if (StrUtil.isNotBlank(config.customVar)) {
             List<String> split = StrUtil.split(config.customVar, ";");
             config.customParameters = split.stream().map(s -> {
                 String[] properties = s.split("=");
-                String property = properties[0];
-                // 截取key后面的()号里面的数据
-                String desc = StrUtil.subBetween(property, "(", ")");
-                return new TemplateParameter(properties[0], properties[1], desc);
-            }).toList();
+                String key = properties[0];
+                String value = properties.length > 1 ? properties[1] : "";
+                // 截取key后面的()号里面的数据作为描述
+                String desc = StrUtil.subBetween(key, "(", ")");
+                // 如果没有描述信息，则使用key作为描述
+                if (desc == null) {
+                    desc = key;
+                }
+                // 去掉key中的括号部分
+                key = StrUtil.subBefore(key, "(", false);
+
+                TemplateParameter<String> param = new TemplateParameter<>();
+                param.setName(key);
+                param.setValue(value);
+                param.setDescription(desc);
+                return param;
+            }).collect(Collectors.toList());
         }
         config.saveListener = this.saveListener.isSelected();
         // 更新监听器状态
@@ -283,6 +296,22 @@ public class DocConfig implements Configurable {
         this.saveListener.addActionListener(e -> this.isModified = true);
     }
 
+    /**
+     * 重新绘制界面
+     * <p>
+     * 触发界面的重新绘制，确保组件状态正确更新
+     * </p>
+     *
+     * @since y.y.y
+     */
+    private void repaint() {
+        SwingUtilities.invokeLater(() -> {
+            if (this.mainPanel != null) {
+                this.mainPanel.repaint();
+            }
+        });
+    }
+
     {
 // GUI initializer generated by IntelliJ IDEA GUI Designer
 // >>> IMPORTANT!! <<<
@@ -311,35 +340,35 @@ public class DocConfig implements Configurable {
         methodTemplate = new JTextArea();
         methodContent.setViewportView(methodTemplate);
         fieldContent = new JScrollPane();
-        mainPanel.add(fieldContent, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 100), new Dimension(400, 100), null, 0, false));
+        mainPanel.add(fieldContent, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 200), new Dimension(400, 200), null, 0, false));
         fieldContent.setBorder(BorderFactory.createTitledBorder(null, "字段模板", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         fieldTemplate = new JTextArea();
         fieldContent.setViewportView(fieldTemplate);
         final Spacer spacer1 = new Spacer();
         mainPanel.add(spacer1, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        customContent = new JScrollPane();
+        mainPanel.add(customContent, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 100), new Dimension(400, 100), null, 0, false));
+        customContent.setBorder(BorderFactory.createTitledBorder(null, "自定义变量（k(描述)=v形式使用分号分割）", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        customVar = new JTextArea();
+        customContent.setViewportView(customVar);
+        final Spacer spacer2 = new Spacer();
+        mainPanel.add(spacer2, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        advancedFeaturesContent = new JPanel();
+        advancedFeaturesContent.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.add(advancedFeaturesContent, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        advancedFeaturesContent.setBorder(BorderFactory.createTitledBorder(null, "高级特性", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        saveListener = new JCheckBox();
+        saveListener.setText("开启保存监听");
+        advancedFeaturesContent.add(saveListener, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final Spacer spacer3 = new Spacer();
+        advancedFeaturesContent.add(spacer3, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
         varContent = new JScrollPane();
-        mainPanel.add(varContent, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 100), new Dimension(400, 100), null, 0, false));
+        mainPanel.add(varContent, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 200), new Dimension(400, 200), null, 0, false));
         varContent.setBorder(BorderFactory.createTitledBorder(null, "内置变量说明", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         varDesc = new JTextPane();
         varDesc.setEditable(false);
         varDesc.setEnabled(true);
         varContent.setViewportView(varDesc);
-        final Spacer spacer2 = new Spacer();
-        mainPanel.add(spacer2, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-        customContent = new JScrollPane();
-        mainPanel.add(customContent, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 100), new Dimension(400, 100), null, 0, false));
-        customContent.setBorder(BorderFactory.createTitledBorder(null, "自定义变量（k(描述)=v形式使用分号分割）", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        customVar = new JTextArea();
-        customContent.setViewportView(customVar);
-        final Spacer spacer3 = new Spacer();
-        mainPanel.add(spacer3, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
-        advancedFeaturesContent = new JPanel();
-        advancedFeaturesContent.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(advancedFeaturesContent, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        advancedFeaturesContent.setBorder(BorderFactory.createTitledBorder(null, "高级特性", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        saveListener = new JCheckBox();
-        saveListener.setText("开启保存监听");
-        advancedFeaturesContent.add(saveListener, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /** @noinspection ALL */

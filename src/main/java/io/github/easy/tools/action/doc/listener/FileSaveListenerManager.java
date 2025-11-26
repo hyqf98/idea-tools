@@ -14,8 +14,9 @@ import java.util.List;
  * <p>
  * 用于动态注册和注销文件保存监听器，根据配置动态控制监听器的启用和禁用
  * </p>
- *
+ * <p>
  * iamxiaohaijun
+ *
  * @version 1.0.0
  * @email "mailto:iamxiaohaijun@gmail.com"
  * @date 2025.09.17 16:14
@@ -93,21 +94,10 @@ public final class FileSaveListenerManager implements AppLifecycleListener {
      * @since y.y.y
      */
     private void unregisterListener() {
-        if (this.connection != null && this.isRegistered) {
-            // 断开连接以注销监听器
+        if (this.connection != null) {
             this.connection.disconnect();
             this.connection = null;
-            this.isRegistered = false;
         }
-    }
-
-    /**
-     * 检查监听器是否已注册
-     *
-     * @return 如果已注册返回true ，否则返回false
-     * @since y.y.y
-     */
-    public boolean isRegistered() {
-        return this.isRegistered;
+        this.isRegistered = false;
     }
 }

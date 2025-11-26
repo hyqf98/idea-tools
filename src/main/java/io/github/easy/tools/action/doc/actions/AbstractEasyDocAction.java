@@ -9,6 +9,7 @@ import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiWhiteSpace;
+import com.intellij.psi.impl.source.tree.java.PsiIdentifierImpl;
 import com.intellij.psi.javadoc.PsiDocComment;
 import io.github.easy.tools.service.doc.processor.CommentProcessor;
 import io.github.easy.tools.service.doc.processor.JavaCommentProcessor;
@@ -65,6 +66,15 @@ public abstract class AbstractEasyDocAction extends AnAction {
      */
     protected PsiElement findFirstElementFromCaret(PsiFile file, int offset) {
         PsiElement element = file.findElementAt(offset);
+        
+        // 特殊处理：如果元素是PsiIdentifier，则向上查找PsiClass
+        if (element instanceof PsiIdentifierImpl) {
+            PsiElement parent = element.getParent();
+            if (parent instanceof PsiClass) {
+                return parent;
+            }
+        }
+        
         // 先检查当前元素是否匹配
         if (this.match(element)) {
             return element;
@@ -125,6 +135,14 @@ public abstract class AbstractEasyDocAction extends AnAction {
         
         int offset = editor.getCaretModel().getOffset();
         PsiElement element = file.findElementAt(offset);
+        
+        // 特殊处理：如果元素是PsiIdentifier，则向上查找PsiClass
+        if (element instanceof PsiIdentifierImpl) {
+            PsiElement parent = element.getParent();
+            if (parent instanceof PsiClass) {
+                return parent;
+            }
+        }
         
         // 跳过空白字符
         while (element instanceof PsiWhiteSpace) {

@@ -7,6 +7,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.context.Context;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.apache.velocity.util.introspection.SecureUberspector;
 
 import java.io.StringWriter;
 import java.util.Properties;
@@ -37,6 +38,14 @@ public class VelocityTemplateRenderer implements TemplateRenderer {
         // 使用新的配置键替换已弃用的键
         properties.setProperty("resource.loaders", "classpath");
         properties.setProperty("resource.loader.classpath.class", ClasspathResourceLoader.class.getName());
+        // 配置安全的内省器，更好地处理空值
+        properties.setProperty("runtime.introspector.uberspect", SecureUberspector.class.getName());
+        // 配置空值处理
+        properties.setProperty("directive.if.emptycheck", "true");
+        // 配置严格模式，更好地处理null值
+        properties.setProperty("runtime.strict_mode", "false");
+        // 配置引用处理，使null值显示为空字符串
+        properties.setProperty("runtime.reference.null.string", "");
         this.velocityEngine = new VelocityEngine();
         this.velocityEngine.init(properties);
     }
