@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiField;
@@ -15,9 +16,9 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaDocumentedElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiParameter;
-import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.javadoc.PsiDocComment;
+import com.intellij.psi.util.PsiTypesUtil;
 import io.github.easy.tools.entity.doc.TemplateParameter;
 import io.github.easy.tools.service.doc.ai.AIDocProcessor;
 import io.github.easy.tools.service.doc.ai.AIProvider;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -110,19 +110,19 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
      * @return AI服务提供商实例
      */
     private AIProvider createAIProvider() {
-        if (aiProvider != null) {
-            return aiProvider;
+        if (this.aiProvider != null) {
+            return this.aiProvider;
         }
         DocConfigService config = DocConfigService.getInstance();
         switch (config.modelType) {
             case "ollama":
-                aiProvider = new OllamaProvider();
+                this.aiProvider = new OllamaProvider();
                 break;
             case "openai":
             default:
-                aiProvider = new OpenAIProvider();
+                this.aiProvider = new OpenAIProvider();
         }
-        return aiProvider;
+        return this.aiProvider;
     }
 
     /**
@@ -760,8 +760,19 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                     .findFirst()
                     .orElse("1.0.0");
 
+            // 获取email参数值
+            String email = DocConfigService.getInstance().getBaseParameters().stream()
+                    .filter(param -> DocConfigService.PARAM_EMAIL.equals(param.getName()))
+                    .map(param -> {
+                        Object value = param.getValue();
+                        return value != null ? value.toString() : "";
+                    })
+                    .findFirst()
+                    .orElse("");
+
             context.put(DocConfigService.PARAM_DESCRIPTION, description);
             context.put(DocConfigService.PARAM_SINCE, since);
+            context.put(DocConfigService.PARAM_EMAIL, email);
 
             // 添加类的泛型类型参数
             List<Map<String, String>> parameters = new ArrayList<>();
@@ -805,10 +816,19 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             context.put(DocConfigService.PARAM_DESCRIPTION, element.getName() + " method");
             // 添加方法返回值类型
             if (element.getReturnType() != null && !"void".equals(element.getReturnType().getPresentableText())) {
-                context.put(DocConfigService.PARAM_RETURN_TYPE, element.getReturnType().getPresentableText());
+                // 使用完全限定名作为返回值类型
+                PsiClass returnClass = PsiTypesUtil.getPsiClass(element.getReturnType());
+                if (returnClass != null && returnClass.getQualifiedName() != null) {
+                    context.put(DocConfigService.PARAM_RETURN_TYPE, returnClass.getQualifiedName());
+                    context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, element.getReturnType().getPresentableText());
+                } else {
+                    context.put(DocConfigService.PARAM_RETURN_TYPE, element.getReturnType().getPresentableText());
+                    context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, element.getReturnType().getPresentableText());
+                }
             } else {
                 // 对于无返回值的方法，确保返回空字符串而不是"void"
                 context.put(DocConfigService.PARAM_RETURN_TYPE, "");
+                context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, "");
             }
             // 添加方法参数信息（包括泛型类型参数和普通参数）
             List<Map<String, String>> parameters = new ArrayList<>();
@@ -832,7 +852,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
             // 添加方法抛出的异常信息
             List<String> exceptions = new ArrayList<>();
-            for (com.intellij.psi.PsiClassType exceptionType : element.getThrowsList().getReferencedTypes()) {
+            for (PsiClassType exceptionType : element.getThrowsList().getReferencedTypes()) {
                 exceptions.add(exceptionType.getPresentableText());
             }
             context.put(DocConfigService.PARAM_EXCEPTIONS, exceptions);

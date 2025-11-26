@@ -41,6 +41,8 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     public static final String PARAM_PARAMETERS = "parameters";
     /** 返回值类型参数名 */
     public static final String PARAM_RETURN_TYPE = "returnType";
+    /** 返回值类型简单名称参数名 */
+    public static final String PARAM_RETURN_TYPE_SIMPLE = "returnTypeSimple";
     /** 异常列表参数名 */
     public static final String PARAM_EXCEPTIONS = "exceptions";
     /** 字段名称参数名 */
@@ -49,6 +51,11 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     public static final String PARAM_FIELD_TYPE = "fieldType";
     /** 参数名称key */
     public static final String PARAM_PARAMETER_NAME = "parameterName";
+    /** 参数名称简单名称key */
+    public static final String PARAM_PARAMETER_NAME_SIMPLE = "parameterNameSimple";
+
+    /** 邮箱参数名 */
+    public static final String PARAM_EMAIL = "email";
 
 
 
@@ -111,6 +118,9 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
              * @param $param.name $param.parameterName
              #end
              * @author ${author}
+             #if( $email && $email != "" )
+             * @email ${email}
+             #end
              * @date ${date}
              * @version ${version}
              * @since ${since}
@@ -123,10 +133,10 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
              * ${description}
              *
              #foreach( $param in $parameters )
-             * @param $param.name $param.parameterName
+             * @param $param.parameterName $param.name
              #end
-             #if( $returnType && $returnType != "" )
-             * @return $returnType
+             #if( $returnTypeSimple && $returnTypeSimple != "" )
+             * @return $returnTypeSimple
              #end
              #foreach( $exception in $exceptions )
              * @throws $exception
@@ -223,8 +233,9 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
         parameters.put(PARAM_VERSION, "版本号");
         parameters.put(PARAM_DESCRIPTION, "类描述（默认为类名）");
         parameters.put(PARAM_SINCE, "起始版本");
-        parameters.put(PARAM_PARAMETERS, "泛型类型参数列表（包含name和parameterName，name格式为<T>）");
+        parameters.put(PARAM_PARAMETERS, "泛型类型参数列表（包含name、parameterName和parameterNameSimple，name格式为<T>，parameterName为完全限定名，parameterNameSimple为简单名称）");
         parameters.put(PARAM_STR, "Hutool字符串工具类");
+        parameters.put(PARAM_EMAIL, "作者邮箱");
         return parameters;
     }
 
@@ -240,8 +251,9 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
         parameters.put(PARAM_DATE, "当前日期");
         parameters.put(PARAM_VERSION, "版本号");
         parameters.put(PARAM_DESCRIPTION, "方法描述（默认为方法名+method）");
-        parameters.put(PARAM_PARAMETERS, "方法参数列表（包含name和parameterName，泛型参数name格式为<T>）");
-        parameters.put(PARAM_RETURN_TYPE, "返回值类型");
+        parameters.put(PARAM_PARAMETERS, "方法参数列表（包含name、parameterName和parameterNameSimple，泛型参数name格式为<T>，parameterName为完全限定名，parameterNameSimple为简单名称）");
+        parameters.put(PARAM_RETURN_TYPE, "返回值类型（完全限定名）");
+        parameters.put(PARAM_RETURN_TYPE_SIMPLE, "返回值类型（简单名称）");
         parameters.put(PARAM_EXCEPTIONS, "抛出的异常列表");
         parameters.put(PARAM_STR, "Hutool字符串工具类");
         return parameters;

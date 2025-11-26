@@ -2,7 +2,6 @@ package io.github.easy.tools.action.doc.actions;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
@@ -66,7 +65,7 @@ public abstract class AbstractEasyDocAction extends AnAction {
      */
     protected PsiElement findFirstElementFromCaret(PsiFile file, int offset) {
         PsiElement element = file.findElementAt(offset);
-        
+
         // 特殊处理：如果元素是PsiIdentifier，则向上查找PsiClass
         if (element instanceof PsiIdentifierImpl) {
             PsiElement parent = element.getParent();
@@ -74,7 +73,7 @@ public abstract class AbstractEasyDocAction extends AnAction {
                 return parent;
             }
         }
-        
+
         // 先检查当前元素是否匹配
         if (this.match(element)) {
             return element;
@@ -120,7 +119,7 @@ public abstract class AbstractEasyDocAction extends AnAction {
         }
         return false;
     }
-    
+
     /**
      * 获取光标位置的元素
      *
@@ -132,10 +131,10 @@ public abstract class AbstractEasyDocAction extends AnAction {
         if (editor == null) {
             return file;
         }
-        
+
         int offset = editor.getCaretModel().getOffset();
         PsiElement element = file.findElementAt(offset);
-        
+
         // 特殊处理：如果元素是PsiIdentifier，则向上查找PsiClass
         if (element instanceof PsiIdentifierImpl) {
             PsiElement parent = element.getParent();
@@ -143,17 +142,17 @@ public abstract class AbstractEasyDocAction extends AnAction {
                 return parent;
             }
         }
-        
+
         // 跳过空白字符
         while (element instanceof PsiWhiteSpace) {
             element = element.getNextSibling();
         }
-        
+
         // 如果找不到元素，返回文件本身
         if (element == null) {
             return file;
         }
-        
+
         // 查找最近的可注释元素
         return this.findFirstElementFromCaret(file, offset);
     }
