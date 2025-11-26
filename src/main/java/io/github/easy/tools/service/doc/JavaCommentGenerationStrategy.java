@@ -19,7 +19,7 @@ import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.util.PsiTypesUtil;
-import io.github.easy.tools.entity.doc.TemplateParameter;
+import io.github.easy.tools.entity.doc.ParameterInfo;
 import io.github.easy.tools.service.doc.ai.AIDocProcessor;
 import io.github.easy.tools.service.doc.ai.AIProvider;
 import io.github.easy.tools.service.doc.ai.AIRequest;
@@ -29,6 +29,7 @@ import io.github.easy.tools.service.doc.ai.OpenAIProvider;
 import io.github.easy.tools.service.doc.velocity.VelocityTemplateRenderer;
 import io.github.easy.tools.ui.config.DocConfigService;
 import io.github.easy.tools.utils.NotificationUtil;
+import io.github.easy.tools.utils.StrConverter;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.context.Context;
 
@@ -542,7 +543,6 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
     private static abstract class AbstractDocHandler<P extends PsiElement> implements DocHandler<P> {
 
         /**
-         *
          * Abstract doc handler
          *
          * @since y.y.y
@@ -606,11 +606,9 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          * @param file    当前文件
          */
         private void addBaseParameters(VelocityContext context, PsiFile file) {
-            List<TemplateParameter> baseParameters = this.getBaseParameters(file);
-            for (TemplateParameter param : baseParameters) {
-                // 确保所有值都转换为字符串，空值填充为空字符串
-                Object value = param.getValue();
-                context.put(param.getName(), value);
+            Map<String, Object> baseParameters = this.getBaseParameters(file);
+            for (Map.Entry<String, Object> entry : baseParameters.entrySet()) {
+                context.put(entry.getKey(), entry.getValue());
             }
         }
 
@@ -620,11 +618,11 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          * @param context Velocity上下文
          */
         private void addCustomParameters(VelocityContext context) {
-            List<TemplateParameter> customParameters = this.getCustomParameters();
-            for (TemplateParameter param : customParameters) {
-                // 确保所有值都转换为字符串，空值填充为空字符串
-                Object value = param.getValue();
-                context.put(param.getName(), value);
+            List<Map<String, Object>> customParameters = this.getCustomParameters();
+            for (Map<String, Object> param : customParameters) {
+                for (Map.Entry<String, Object> entry : param.entrySet()) {
+                    context.put(entry.getKey(), entry.getValue());
+                }
             }
         }
 
@@ -642,16 +640,12 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          * @param file 文件
          * @return 基础参数列表
          */
-        private List<TemplateParameter> getBaseParameters(PsiFile file) {
-            List<TemplateParameter> baseParameters = DocConfigService.getInstance().getBaseParameters();
+        private Map<String, Object> getBaseParameters(PsiFile file) {
+            Map<String, Object> baseParameters = DocConfigService.getInstance().getBaseParameters();
             // 替换version
-            baseParameters.stream()
-                    .filter(param -> param.getName().equals("version"))
-                    .findFirst()
-                    .ifPresent(param -> {
-                        String version = this.getProjectVersion(file);
-                        param.setValue(version);
-                    });
+            String version = this.getProjectVersion(file);
+            baseParameters.put(DocConfigService.PARAM_VERSION, version);
+            baseParameters.put(DocConfigService.PARAM_SINCE, version);
             return baseParameters;
         }
 
@@ -717,7 +711,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          *
          * @return 自定义参数列表
          */
-        private List<TemplateParameter> getCustomParameters() {
+        private List<Map<String, Object>> getCustomParameters() {
             return DocConfigService.getInstance().customParameters;
         }
     }
@@ -742,6 +736,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             return VELOCITY_RENDERER.render(cfg.classTemplate, context, element);
         }
 
+
         /**
          * 添加类元素特定参数到上下文
          *
@@ -750,37 +745,23 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          */
         @Override
         protected void addElementSpecificParameters(VelocityContext context, PsiClass element) {
-            String description = element.getName();
-            String since = DocConfigService.getInstance().getBaseParameters().stream()
-                    .filter(param -> DocConfigService.PARAM_SINCE.equals(param.getName()))
-                    .map(param -> {
-                        Object value = param.getValue();
-                        return value != null ? value.toString() : "";
-                    })
-                    .findFirst()
-                    .orElse("1.0.0");
-
-            // 获取email参数值
-            String email = DocConfigService.getInstance().getBaseParameters().stream()
-                    .filter(param -> DocConfigService.PARAM_EMAIL.equals(param.getName()))
-                    .map(param -> {
-                        Object value = param.getValue();
-                        return value != null ? value.toString() : "";
-                    })
-                    .findFirst()
-                    .orElse("");
-
-            context.put(DocConfigService.PARAM_DESCRIPTION, description);
-            context.put(DocConfigService.PARAM_SINCE, since);
-            context.put(DocConfigService.PARAM_EMAIL, email);
+            // 将类名称按照驼峰命名的方式进行分割并首字母大写
+            String className = element.getName();
+            String formattedClassName = StrConverter.firstUpperConverter(className);
+            context.put(DocConfigService.PARAM_DESCRIPTION, formattedClassName);
 
             // 添加类的泛型类型参数
-            List<Map<String, String>> parameters = new ArrayList<>();
+            List<ParameterInfo> parameters = new ArrayList<>();
             for (PsiTypeParameter typeParameter : element.getTypeParameters()) {
-                Map<String, String> param = new HashMap<>();
-                param.put("name", "<" + typeParameter.getName() + ">");
-                param.put("parameterName", "parameter");
-                parameters.add(param);
+                ParameterInfo info = ParameterInfo.builder()
+                        .originalName(typeParameter.getName())
+                        .shortName(typeParameter.getName())
+                        .lowerFirstName(StrUtil.lowerFirst(typeParameter.getName()))
+                        .splitName(StrUtil.toUnderlineCase(typeParameter.getName()).replace("_", " "))
+                        .qualifiedTypeName("parameter")
+                        .simpleTypeName("parameter")
+                        .build();
+                parameters.add(info);
             }
             context.put(DocConfigService.PARAM_PARAMETERS, parameters);
         }
@@ -813,39 +794,64 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          */
         @Override
         protected void addElementSpecificParameters(VelocityContext context, PsiMethod element) {
-            context.put(DocConfigService.PARAM_DESCRIPTION, element.getName() + " method");
-            // 添加方法返回值类型
+            // 将方法名称按照驼峰命名的方式进行分割并首字母大写
+            String methodName = element.getName();
+            String formattedMethodName = StrConverter.firstUpperConverter(methodName);
+            context.put(DocConfigService.PARAM_DESCRIPTION, formattedMethodName);
+
+            // 添加方法返回值信息
             if (element.getReturnType() != null && !"void".equals(element.getReturnType().getPresentableText())) {
-                // 使用完全限定名作为返回值类型
+                String returnTypeText = element.getReturnType().getPresentableText();
                 PsiClass returnClass = PsiTypesUtil.getPsiClass(element.getReturnType());
-                if (returnClass != null && returnClass.getQualifiedName() != null) {
-                    context.put(DocConfigService.PARAM_RETURN_TYPE, returnClass.getQualifiedName());
-                    context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, element.getReturnType().getPresentableText());
-                } else {
-                    context.put(DocConfigService.PARAM_RETURN_TYPE, element.getReturnType().getPresentableText());
-                    context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, element.getReturnType().getPresentableText());
-                }
+
+                ParameterInfo returnInfo = ParameterInfo.builder()
+                        .originalName(returnTypeText)
+                        .shortName(returnTypeText) // 不再需要完全限定名
+                        .simpleTypeName(returnTypeText)
+                        .qualifiedTypeName(returnClass != null && returnClass.getQualifiedName() != null ?
+                                returnClass.getQualifiedName() : returnTypeText)
+                        .lowerFirstName(StrUtil.lowerFirst(returnTypeText))
+                        .splitName(StrUtil.toUnderlineCase(returnTypeText).replace("_", " "))
+                        .build();
+
+                context.put(DocConfigService.PARAM_RETURN_TYPE, returnInfo);
+                context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, returnTypeText);
             } else {
                 // 对于无返回值的方法，确保返回空字符串而不是"void"
                 context.put(DocConfigService.PARAM_RETURN_TYPE, "");
                 context.put(DocConfigService.PARAM_RETURN_TYPE_SIMPLE, "");
             }
+
             // 添加方法参数信息（包括泛型类型参数和普通参数）
-            List<Map<String, String>> parameters = new ArrayList<>();
+            List<ParameterInfo> parameters = new ArrayList<>();
 
             // 首先添加泛型类型参数
             for (com.intellij.psi.PsiTypeParameter typeParameter : element.getTypeParameters()) {
-                Map<String, String> param = new HashMap<>();
-                param.put("name", "<" + typeParameter.getName() + ">");
-                param.put("parameterName", "parameter");
+                String paramName = "<" + typeParameter.getName() + ">";
+                ParameterInfo param = ParameterInfo.builder()
+                        .originalName(paramName)
+                        .shortName(paramName)
+                        .simpleTypeName("parameter")
+                        .qualifiedTypeName("parameter")
+                        .lowerFirstName(StrUtil.lowerFirst(paramName))
+                        .splitName(StrUtil.toUnderlineCase(paramName).replace("_", " "))
+                        .build();
                 parameters.add(param);
             }
 
             // 然后添加普通方法参数
             for (PsiParameter parameter : element.getParameterList().getParameters()) {
-                Map<String, String> param = new HashMap<>();
-                param.put("name", parameter.getName());
-                param.put("parameterName", parameter.getType().getPresentableText());
+                String paramName = parameter.getName();
+                String paramType = parameter.getType().getPresentableText();
+
+                ParameterInfo param = ParameterInfo.builder()
+                        .originalName(paramName)
+                        .shortName(paramName) // 不再需要完全限定名
+                        .simpleTypeName(paramType)
+                        .qualifiedTypeName(parameter.getType().getCanonicalText())
+                        .lowerFirstName(StrUtil.lowerFirst(paramName))
+                        .splitName(StrUtil.toUnderlineCase(paramName).replace("_", " "))
+                        .build();
                 parameters.add(param);
             }
             context.put(DocConfigService.PARAM_PARAMETERS, parameters);

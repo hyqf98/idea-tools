@@ -7,7 +7,6 @@ import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
-import io.github.easy.tools.entity.doc.TemplateParameter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;
@@ -49,11 +48,6 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     public static final String PARAM_FIELD_NAME = "fieldName";
     /** 字段类型参数名 */
     public static final String PARAM_FIELD_TYPE = "fieldType";
-    /** 参数名称key */
-    public static final String PARAM_PARAMETER_NAME = "parameterName";
-    /** 参数名称简单名称key */
-    public static final String PARAM_PARAMETER_NAME_SIMPLE = "parameterNameSimple";
-
     /** 邮箱参数名 */
     public static final String PARAM_EMAIL = "email";
 
@@ -115,7 +109,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
              * ${description}
              *
              #foreach( $param in $parameters )
-             * @param $param.name $param.parameterName
+             * @param $param.originalName $param.splitName
              #end
              * @author ${author}
              #if( $email && $email != "" )
@@ -133,14 +127,15 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
              * ${description}
              *
              #foreach( $param in $parameters )
-             * @param $param.parameterName $param.name
+             * @param $param.originalName $param.splitName
              #end
-             #if( $returnTypeSimple && $returnTypeSimple != "" )
-             * @return $returnTypeSimple
+             #if( $returnType && $returnType != "" )
+             * @return the $returnType.splitName
              #end
              #foreach( $exception in $exceptions )
              * @throws $exception
              #end
+             * @since ${since}
              */
             """;
 
@@ -174,7 +169,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     /**
      * 自定义参数列表
      */
-    public List<TemplateParameter> customParameters = new LinkedList<>();
+    public List<Map<String, Object>> customParameters = new LinkedList<>();
 
     /**
      * 是否启用保存监听器
@@ -190,110 +185,32 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
      * @return 基础参数列表 base parameters
      * @since y.y.y
      */
-    public List<TemplateParameter> getBaseParameters() {
-        String author = System.getProperty("user.name");
-        List<TemplateParameter> list = new LinkedList<>();
-        TemplateParameter<String> author1 = new TemplateParameter<>();
-        author1.setName(PARAM_AUTHOR);
-        author1.setValue(author);
-        author1.setDescription("作者");
-
-        TemplateParameter<String> date = new TemplateParameter<>();
-        date.setName(PARAM_DATE);
-        date.setValue(DateUtil.now());
-        date.setDescription("日期");
-
-        TemplateParameter<String> version = new TemplateParameter<>();
-        version.setName(PARAM_VERSION);
-        version.setValue("1.0.0");
-        version.setDescription("版本");
-
-        TemplateParameter<String> str = new TemplateParameter<>();
-        str.setName(PARAM_STR);
-        str.setValue(StrUtil.class.getName()); // 改为使用类名字符串而不是Class对象
-        str.setDescription("字符串工具类");
-
-        list.add(author1);
-        list.add(date);
-        list.add(version);
-        list.add(str);
-        return list;
+    public Map<String, Object> getBaseParameters() {
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put(PARAM_AUTHOR, System.getProperty("user.name"));
+        parameters.put(PARAM_DATE, DateUtil.now());
+        parameters.put(PARAM_VERSION, "1.0.0");
+        parameters.put(PARAM_SINCE, "1.0.0");
+        parameters.put(PARAM_STR, StrUtil.class.getName());
+        return parameters;
     }
 
     /**
-     * 获取类模板可用的内置参数说明
+     * 获取基础模板参数（公共参数）
+     * <p>
+     * 包括作者名、当前日期、版本号等所有模板共用的基础参数
+     * </p>
      *
-     * @return 类模板参数说明映射 class template parameters
+     * @return 基础参数映射 base template parameters
      * @since y.y.y
      */
-    public Map<String, String> getClassTemplateParameters() {
+    public Map<String, String> getBaseTemplateParameters() {
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put(PARAM_AUTHOR, "作者名称");
         parameters.put(PARAM_DATE, "当前日期");
         parameters.put(PARAM_VERSION, "版本号");
-        parameters.put(PARAM_DESCRIPTION, "类描述（默认为类名）");
+        parameters.put(PARAM_STR, "Hutool字符串工具类");
         parameters.put(PARAM_SINCE, "起始版本");
-        parameters.put(PARAM_PARAMETERS, "泛型类型参数列表（包含name、parameterName和parameterNameSimple，name格式为<T>，parameterName为完全限定名，parameterNameSimple为简单名称）");
-        parameters.put(PARAM_STR, "Hutool字符串工具类");
-        parameters.put(PARAM_EMAIL, "作者邮箱");
-        return parameters;
-    }
-
-    /**
-     * 获取方法模板可用的内置参数说明
-     *
-     * @return 方法模板参数说明映射 method template parameters
-     * @since y.y.y
-     */
-    public Map<String, String> getMethodTemplateParameters() {
-        Map<String, String> parameters = new LinkedHashMap<>();
-        parameters.put(PARAM_AUTHOR, "作者名称");
-        parameters.put(PARAM_DATE, "当前日期");
-        parameters.put(PARAM_VERSION, "版本号");
-        parameters.put(PARAM_DESCRIPTION, "方法描述（默认为方法名+method）");
-        parameters.put(PARAM_PARAMETERS, "方法参数列表（包含name、parameterName和parameterNameSimple，泛型参数name格式为<T>，parameterName为完全限定名，parameterNameSimple为简单名称）");
-        parameters.put(PARAM_RETURN_TYPE, "返回值类型（完全限定名）");
-        parameters.put(PARAM_RETURN_TYPE_SIMPLE, "返回值类型（简单名称）");
-        parameters.put(PARAM_EXCEPTIONS, "抛出的异常列表");
-        parameters.put(PARAM_STR, "Hutool字符串工具类");
-        return parameters;
-    }
-
-    /**
-     * 获取字段模板可用的内置参数说明
-     *
-     * @return 字段模板参数说明映射 field template parameters
-     * @since y.y.y
-     */
-    public Map<String, String> getFieldTemplateParameters() {
-        Map<String, String> parameters = new LinkedHashMap<>();
-        parameters.put(PARAM_AUTHOR, "作者名称");
-        parameters.put(PARAM_DATE, "当前日期");
-        parameters.put(PARAM_VERSION, "版本号");
-        parameters.put(PARAM_FIELD_NAME, "字段名称");
-        parameters.put(PARAM_FIELD_TYPE, "字段类型");
-        parameters.put(PARAM_STR, "Hutool字符串工具类");
-        return parameters;
-    }
-
-    /**
-     * 获取所有内置参数说明
-     *
-     * @return 所有模板参数说明映射 all template parameters
-     * @since y.y.y
-     */
-    public Map<String, String> getAllTemplateParameters() {
-        Map<String, String> parameters = new LinkedHashMap<>();
-
-        // 添加类模板参数
-        parameters.putAll(this.getClassTemplateParameters());
-
-        // 添加方法模板参数
-        parameters.putAll(this.getMethodTemplateParameters());
-
-        // 添加字段模板参数
-        parameters.putAll(this.getFieldTemplateParameters());
-
         return parameters;
     }
 

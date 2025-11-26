@@ -6,7 +6,8 @@ import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
 import io.github.easy.tools.action.doc.listener.FileSaveListenerManager;
-import io.github.easy.tools.entity.doc.TemplateParameter;
+import io.github.easy.tools.entity.doc.Desc;
+import io.github.easy.tools.entity.doc.ParameterInfo;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
@@ -22,7 +23,10 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.lang.reflect.Field;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -194,10 +198,10 @@ public class DocConfig implements Configurable {
                 // 去掉key中的括号部分
                 key = StrUtil.subBefore(key, "(", false);
 
-                TemplateParameter<String> param = new TemplateParameter<>();
-                param.setName(key);
-                param.setValue(value);
-                param.setDescription(desc);
+                Map<String, Object> param = new LinkedHashMap<>();
+                param.put("name", key);
+                param.put("value", value);
+                param.put("description", desc);
                 return param;
             }).collect(Collectors.toList());
         }
@@ -231,6 +235,79 @@ public class DocConfig implements Configurable {
     }
 
     /**
+     * 构建树形结构的内置变量描述文本
+     *
+     * @param title   标题
+     * @param objects 对象列表，可以是自定义对象或Map
+     * @return 树形结构的描述文本
+     */
+    private String buildTreeDescription(String title, Object... objects) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(title).append("\n");
+
+        for (Object obj : objects) {
+            if (obj instanceof Map) {
+                // 处理Map类型
+                Map<?, ?> map = (Map<?, ?>) obj;
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    sb.append("  ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+            } else if (obj instanceof Class) {
+                // 处理Class类型，展示类的字段结构
+                Class<?> clazz = (Class<?>) obj;
+                sb.append(clazz.getSimpleName()).append(":\n");
+
+                // 获取类的所有字段
+                Field[] fields = clazz.getDeclaredFields();
+                for (Field field : fields) {
+                    try {
+                        String fieldName = field.getName();
+                        String fieldDescription = fieldName; // 默认使用字段名作为描述
+
+                        // 尝试获取@Desc注解的描述
+                        Desc descAnnotation = field.getAnnotation(Desc.class);
+                        if (descAnnotation != null) {
+                            fieldDescription = descAnnotation.value();
+                        }
+
+                        sb.append("  - ").append(fieldName).append(": ").append(fieldDescription).append("\n");
+                    } catch (Exception e) {
+                        // 忽略无法访问的字段
+                        sb.append("  - ").append(field.getName()).append(": (无法获取描述)\n");
+                    }
+                }
+            } else {
+                // 处理普通对象，展示类的字段结构
+                Class<?> clazz = obj.getClass();
+                sb.append(clazz.getSimpleName()).append(":\n");
+
+                // 获取类的所有字段
+                Field[] fields = clazz.getDeclaredFields();
+                for (Field field : fields) {
+                    try {
+                        field.setAccessible(true);
+                        String fieldName = field.getName();
+                        String fieldDescription = fieldName; // 默认使用字段名作为描述
+
+                        // 尝试获取@Desc注解的描述
+                        Desc descAnnotation = field.getAnnotation(Desc.class);
+                        if (descAnnotation != null) {
+                            fieldDescription = descAnnotation.value();
+                        }
+
+                        sb.append("  - ").append(fieldName).append(": ").append(fieldDescription).append("\n");
+                    } catch (Exception e) {
+                        // 忽略无法访问的字段
+                        sb.append("  - ").append(field.getName()).append(": (无法获取描述)\n");
+                    }
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
      * 初始化模板文本框内容
      * <p>
      * 设置各个模板文本框的初始内容和相关属性
@@ -244,19 +321,29 @@ public class DocConfig implements Configurable {
         this.methodTemplate.setText(config.methodTemplate);
         this.fieldTemplate.setText(config.fieldTemplate);
 
-        // 构建内置变量描述文本
+        // 构建树形结构的内置变量描述文本
         StringBuilder varDescText = new StringBuilder();
-        varDescText.append("类模板可用参数:\n");
-        config.getClassTemplateParameters().forEach((name, desc) ->
-                varDescText.append("  ").append(name).append(" - ").append(desc).append("\n"));
 
-        varDescText.append("\n方法模板可用参数:\n");
-        config.getMethodTemplateParameters().forEach((name, desc) ->
-                varDescText.append("  ").append(name).append(" - ").append(desc).append("\n"));
+        // 基础内置参数（所有模板共用）
+        varDescText.append(this.buildTreeDescription("基础内置参数", config.getBaseTemplateParameters()));
 
-        varDescText.append("\n字段模板可用参数:\n");
-        config.getFieldTemplateParameters().forEach((name, desc) ->
-                varDescText.append("  ").append(name).append(" - ").append(desc).append("\n"));
+        // 类模板特有的参数
+        varDescText.append("\n");
+        Map<String, String> classSpecificParams = new LinkedHashMap<>();
+        classSpecificParams.put("description", "类描述（默认为类名）");
+        varDescText.append(this.buildTreeDescription("类特有参数", classSpecificParams));
+        varDescText.append(this.buildTreeDescription("类泛型参数列表", ParameterInfo.class));
+
+        // 方法模板特有的参数 (展示ParameterInfo类的结构)
+        varDescText.append("\n");
+        varDescText.append(this.buildTreeDescription("方法特有参数", ParameterInfo.class));
+
+        // 字段模板特有的参数
+        varDescText.append("\n");
+        Map<String, String> fieldSpecificParams = new LinkedHashMap<>();
+        fieldSpecificParams.put("fieldName", "字段名称");
+        fieldSpecificParams.put("fieldType", "字段类型");
+        varDescText.append(this.buildTreeDescription("字段特有参数", fieldSpecificParams));
 
         this.varDesc.setText(varDescText.toString());
         this.customVar.setText(config.customVar);
