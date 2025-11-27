@@ -18,7 +18,9 @@ repositories {
 dependencies {
     // IntelliJ Platform依赖 (2.x新语法)
     intellijPlatform {
-        create(providers.gradleProperty('platformType'), providers.gradleProperty('platformVersion'))
+        // 检查是否指定了特定的平台版本
+        def platformVer = findProperty('platformVersion') ?: providers.gradleProperty('platformVersion').get()
+        create(providers.gradleProperty('platformType'), platformVer)
 
         // 绑定插件
         bundledPlugin('com.intellij.java')
@@ -80,6 +82,8 @@ intellijPlatform {
             ide('IC', '2024.2')
             ide('IC', '2024.3')
             ide('IC', '2025.1')
+            // 使用当前platformVersion进行验证
+            ide('IC', '2025.2.5')
         }
     }
 }
