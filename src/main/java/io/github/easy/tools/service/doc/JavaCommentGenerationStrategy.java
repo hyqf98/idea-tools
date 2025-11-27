@@ -806,12 +806,12 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
                 ParameterInfo returnInfo = ParameterInfo.builder()
                         .originalName(returnTypeText)
-                        .shortName(returnTypeText) // 不再需要完全限定名
-                        .simpleTypeName(returnTypeText)
+                        .shortName(returnClass != null ? returnClass.getName() : returnTypeText) // 不再需要完全限定名
+                        .simpleTypeName(returnClass != null ? returnClass.getName() : returnTypeText)
                         .qualifiedTypeName(returnClass != null && returnClass.getQualifiedName() != null ?
                                 returnClass.getQualifiedName() : returnTypeText)
-                        .lowerFirstName(StrUtil.lowerFirst(returnTypeText))
-                        .splitName(StrUtil.toUnderlineCase(returnTypeText).replace("_", " "))
+                        .lowerFirstName(StrUtil.lowerFirst(returnClass != null ? returnClass.getName() : returnTypeText))
+                        .splitName(StrUtil.toUnderlineCase(returnClass != null ? returnClass.getName() : returnTypeText).replace("_", " "))
                         .build();
 
                 context.put(DocConfigService.PARAM_RETURN_TYPE, returnInfo);
@@ -826,7 +826,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             List<ParameterInfo> parameters = new ArrayList<>();
 
             // 首先添加泛型类型参数
-            for (com.intellij.psi.PsiTypeParameter typeParameter : element.getTypeParameters()) {
+            for (PsiTypeParameter typeParameter : element.getTypeParameters()) {
                 String paramName = "<" + typeParameter.getName() + ">";
                 ParameterInfo param = ParameterInfo.builder()
                         .originalName(paramName)
