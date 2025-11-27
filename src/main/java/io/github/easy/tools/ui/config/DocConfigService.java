@@ -177,6 +177,12 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     public boolean saveListener = false;
 
     /**
+     * 是否添加非标准注释
+     */
+    public boolean nonStandardDoc = true;
+
+
+    /**
      * 获取基础参数列表
      * <p>
      * 基础参数包括作者名、当前日期和空描述，这些参数会在所有模板中使用。

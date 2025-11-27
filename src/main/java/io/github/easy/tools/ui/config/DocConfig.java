@@ -34,10 +34,10 @@ import java.util.stream.Collectors;
  * <p> 配置界面类，实现Configurable接口，用于在IDEA设置中展示和管理文档模板配置 </p>
  *
  * @author haijun
- * @version x.x.x
- * @email "mailto:iamxiaohaijun@gmail.com"
- * @date 2025.09.12 09:24
- * @since x.x.x
+ * @email "mailto:zhonghaijun@zhxx.com"
+ * @date 2025-11-27 13:31:01
+ * @version 1.0.0
+ * @since 1.0.0
  */
 public class DocConfig implements Configurable {
     /**
@@ -106,6 +106,11 @@ public class DocConfig implements Configurable {
     private JCheckBox saveListener;
 
     /**
+     * 是否添加非标标签
+     */
+    private JCheckBox nonStandardDoc;
+
+    /**
      * 配置是否被修改的标志
      */
     private boolean isModified = false;
@@ -114,19 +119,19 @@ public class DocConfig implements Configurable {
     /**
      * 获取显示名称
      *
-     * @return 配置面板的显示名称 display name
-     * @since y.y.y
+     * @return the string
+     * @since 1.0.0
      */
     @Override
     public String getDisplayName() {
-        return "Base Template";
+        return "Doc Template";
     }
 
     /**
      * 获取帮助主题
      *
-     * @return 帮助主题 help topic
-     * @since y.y.y
+     * @return the string
+     * @since 1.0.0
      */
     @Override
     public @Nullable String getHelpTopic() {
@@ -136,8 +141,8 @@ public class DocConfig implements Configurable {
     /**
      * 创建配置组件
      *
-     * @return 配置界面的主面板组件 j component
-     * @since y.y.y
+     * @return the component
+     * @since 1.0.0
      */
     @Override
     public @Nullable JComponent createComponent() {
@@ -149,8 +154,8 @@ public class DocConfig implements Configurable {
     /**
      * 检查配置是否被修改
      *
-     * @return 如果配置被修改返回true，否则返回false is modified
-     * @since y.y.y
+     * @return the boolean
+     * @since 1.0.0
      */
     @Override
     public boolean isModified() {
@@ -160,16 +165,14 @@ public class DocConfig implements Configurable {
                 !Objects.equals(this.methodTemplate.getText(), config.methodTemplate) ||
                 !Objects.equals(this.fieldTemplate.getText(), config.fieldTemplate) ||
                 !Objects.equals(this.customVar.getText(), config.customVar) ||
-                this.saveListener.isSelected() != config.saveListener;
+                this.saveListener.isSelected() != config.saveListener ||
+                this.nonStandardDoc.isSelected() != config.nonStandardDoc;
     }
 
     /**
-     * 应用配置修改
-     * <p>
-     * 将界面中的配置保存到配置服务中
-     * </p>
+     * 应用配置修改 <p> 将界面中的配置保存到配置服务中 </p>
      *
-     * @since y.y.y
+     * @since 1.0.0
      */
     @Override
     public void apply() {
@@ -179,6 +182,7 @@ public class DocConfig implements Configurable {
         config.fieldTemplate = this.fieldTemplate.getText();
         config.customVar = this.customVar.getText();
 
+        config.nonStandardDoc = this.nonStandardDoc.isSelected();
         // 清空现有的自定义参数列表
         config.customParameters.clear();
 
@@ -214,12 +218,9 @@ public class DocConfig implements Configurable {
     }
 
     /**
-     * 重置配置修改
-     * <p>
-     * 将界面中的配置恢复到上次保存的状态
-     * </p>
+     * 重置配置修改 <p> 将界面中的配置恢复到上次保存的状态 </p>
      *
-     * @since y.y.y
+     * @since 1.0.0
      */
     @Override
     public void reset() {
@@ -230,6 +231,7 @@ public class DocConfig implements Configurable {
         this.initTemplateText();
         this.customVar.setText(config.customVar);
         this.saveListener.setSelected(config.saveListener);
+        this.nonStandardDoc.setSelected(config.nonStandardDoc);
         this.isModified = false;
         this.repaint();
     }
@@ -237,9 +239,10 @@ public class DocConfig implements Configurable {
     /**
      * 构建树形结构的内置变量描述文本
      *
-     * @param title   标题
-     * @param objects 对象列表，可以是自定义对象或Map
-     * @return 树形结构的描述文本
+     * @param title title
+     * @param objects objects
+     * @return the string
+     * @since 1.0.0
      */
     private String buildTreeDescription(String title, Object... objects) {
         StringBuilder sb = new StringBuilder();
@@ -308,12 +311,9 @@ public class DocConfig implements Configurable {
     }
 
     /**
-     * 初始化模板文本框内容
-     * <p>
-     * 设置各个模板文本框的初始内容和相关属性
-     * </p>
+     * 初始化模板文本框内容 <p> 设置各个模板文本框的初始内容和相关属性 </p>
      *
-     * @since y.y.y
+     * @since 1.0.0
      */
     private void initTemplateText() {
         DocConfigService config = DocConfigService.getInstance();
@@ -348,16 +348,14 @@ public class DocConfig implements Configurable {
         this.varDesc.setText(varDescText.toString());
         this.customVar.setText(config.customVar);
         this.saveListener.setSelected(config.saveListener);
+        this.nonStandardDoc.setSelected(config.nonStandardDoc);
         this.repaint();
     }
 
     /**
-     * 初始化事件监听器
-     * <p>
-     * 为界面组件添加事件监听器，用于检测配置修改
-     * </p>
+     * 初始化事件监听器 <p> 为界面组件添加事件监听器，用于检测配置修改 </p>
      *
-     * @since y.y.y
+     * @since 1.0.0
      */
     private void initEventListeners() {
         DocumentListener documentListener = new DocumentListener() {
@@ -384,12 +382,9 @@ public class DocConfig implements Configurable {
     }
 
     /**
-     * 重新绘制界面
-     * <p>
-     * 触发界面的重新绘制，确保组件状态正确更新
-     * </p>
+     * 重新绘制界面 <p> 触发界面的重新绘制，确保组件状态正确更新 </p>
      *
-     * @since y.y.y
+     * @since 1.0.0
      */
     private void repaint() {
         SwingUtilities.invokeLater(() -> {
@@ -407,11 +402,9 @@ public class DocConfig implements Configurable {
     }
 
     /**
-     * Method generated by IntelliJ IDEA GUI Designer
-     * >>> IMPORTANT!! <<<
-     * DO NOT edit this method OR call it in your code!
+     * Method generated by IntelliJ IDEA GUI Designer >>> IMPORTANT!! <<< DO NOT edit this method OR call it in your code!
      *
-     * @noinspection ALL
+     * @since 1.0.0
      */
     private void $$$setupUI$$$() {
         mainPanel = new JPanel();
@@ -435,20 +428,24 @@ public class DocConfig implements Configurable {
         mainPanel.add(spacer1, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
         customContent = new JScrollPane();
         mainPanel.add(customContent, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 100), new Dimension(400, 100), null, 0, false));
-        customContent.setBorder(BorderFactory.createTitledBorder(null, "自定义变量（k(描述)=v形式使用分号分割，例如：email(作者邮箱)=example@email.com）", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        customContent.setBorder(BorderFactory.createTitledBorder(null, "自定义变量（k(描述)=v形式使用分号分割）", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         customVar = new JTextArea();
         customContent.setViewportView(customVar);
         final Spacer spacer2 = new Spacer();
         mainPanel.add(spacer2, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
         advancedFeaturesContent = new JPanel();
-        advancedFeaturesContent.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        advancedFeaturesContent.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         mainPanel.add(advancedFeaturesContent, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         advancedFeaturesContent.setBorder(BorderFactory.createTitledBorder(null, "高级特性", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         saveListener = new JCheckBox();
         saveListener.setText("开启保存监听");
         advancedFeaturesContent.add(saveListener, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer3 = new Spacer();
-        advancedFeaturesContent.add(spacer3, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        advancedFeaturesContent.add(spacer3, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        nonStandardDoc = new JCheckBox();
+        nonStandardDoc.setSelected(true);
+        nonStandardDoc.setText("添加非标注释");
+        advancedFeaturesContent.add(nonStandardDoc, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         varContent = new JScrollPane();
         mainPanel.add(varContent, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(400, 200), new Dimension(400, 200), null, 0, false));
         varContent.setBorder(BorderFactory.createTitledBorder(null, "内置变量说明", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
@@ -458,7 +455,12 @@ public class DocConfig implements Configurable {
         varContent.setViewportView(varDesc);
     }
 
-    /** @noinspection ALL */
+    /**
+     * $$$get Root Component$$$
+     *
+     * @return the component
+     * @since 1.0.0
+     */
     public JComponent $$$getRootComponent$$$() {
         return mainPanel;
     }

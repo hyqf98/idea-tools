@@ -450,12 +450,45 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                     } else {
                         psiJavaDocumentedElement.addBefore(docContent, psiJavaDocumentedElement.getFirstChild());
                     }
+                    
+                    // 在注释写入后，注册非标准标签
+                    this.registerNonStandardTags(project, docContent);
                 }
             } catch (Exception e) {
                 // 使用消息进行提示
                 e.printStackTrace();
             }
         });
+    }
+
+    /**
+     * 注册非标准标签
+     * <p>
+     * 从生成的注释内容中提取非标准标签，并注册到 JavadocDeclarationInspection 中，
+     * 避免IDEA对非标准标签产生警告。
+     * </p>
+     * <p>
+     * 该方法只在配置启用非标准标签支持时执行。
+     * </p>
+     *
+     * @param project    项目实例
+     * @param docContent 注释内容
+     */
+    private void registerNonStandardTags(Project project, PsiElement docContent) {
+        try {
+            // 检查是否启用非标准标签支持
+            DocConfigService config = DocConfigService.getInstance();
+            if (!config.nonStandardDoc) {
+                return;
+            }
+            
+            // 如果是 PsiDocComment，注册其中的非标准标签
+            if (docContent instanceof PsiDocComment) {
+                JavaDocTagRegistrarService.getInstance().registerTagsFromComment(project, (PsiDocComment) docContent);
+            }
+        } catch (Exception e) {
+            // 静默处理异常，避免影响注释生成
+        }
     }
 
     /**
