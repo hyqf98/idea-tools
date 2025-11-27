@@ -1,5 +1,6 @@
 package io.github.easy.tools.service.doc;
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
@@ -620,9 +621,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         private void addCustomParameters(VelocityContext context) {
             List<Map<String, Object>> customParameters = this.getCustomParameters();
             for (Map<String, Object> param : customParameters) {
-                for (Map.Entry<String, Object> entry : param.entrySet()) {
-                    context.put(entry.getKey(), entry.getValue());
-                }
+                context.put(MapUtil.getStr(param, "name"), param.get("value"));
             }
         }
 
@@ -804,14 +803,18 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                 String returnTypeText = element.getReturnType().getPresentableText();
                 PsiClass returnClass = PsiTypesUtil.getPsiClass(element.getReturnType());
 
+                // 使用新的convertClassName方法处理返回值名称划分
+                String className = returnClass != null ? returnClass.getName() : returnTypeText;
+                String splitName = StrConverter.convertClassName(className);
+
                 ParameterInfo returnInfo = ParameterInfo.builder()
                         .originalName(returnTypeText)
-                        .shortName(returnClass != null ? returnClass.getName() : returnTypeText) // 不再需要完全限定名
-                        .simpleTypeName(returnClass != null ? returnClass.getName() : returnTypeText)
+                        .shortName(className) // 不再需要完全限定名
+                        .simpleTypeName(className)
                         .qualifiedTypeName(returnClass != null && returnClass.getQualifiedName() != null ?
                                 returnClass.getQualifiedName() : returnTypeText)
-                        .lowerFirstName(StrUtil.lowerFirst(returnClass != null ? returnClass.getName() : returnTypeText))
-                        .splitName(StrUtil.toUnderlineCase(returnClass != null ? returnClass.getName() : returnTypeText).replace("_", " "))
+                        .lowerFirstName(StrUtil.lowerFirst(className))
+                        .splitName(splitName) // 使用新的处理方法
                         .build();
 
                 context.put(DocConfigService.PARAM_RETURN_TYPE, returnInfo);

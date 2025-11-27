@@ -41,6 +41,12 @@ compileJava {
     targetCompatibility = '17'
 }
 
+task {
+    runIde {
+        jvmArgs = List.of("-XX:AllowEnhancedClassRedefinition")
+    }
+}
+
 // 配置测试选项
 test {
     useJUnitPlatform()
