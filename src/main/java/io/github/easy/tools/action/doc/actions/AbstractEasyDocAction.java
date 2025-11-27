@@ -31,8 +31,13 @@ public abstract class AbstractEasyDocAction extends AnAction {
      */
     private static final Map<String, CommentProcessor> PROCESSOR_MAP = new HashMap<>();
 
-    static {
-        PROCESSOR_MAP.put("JAVA", new JavaCommentProcessor());
+    /**
+     * 延迟初始化注释处理器映射
+     */
+    private static void initProcessorMap() {
+        if (PROCESSOR_MAP.isEmpty()) {
+            PROCESSOR_MAP.put("JAVA", new JavaCommentProcessor());
+        }
     }
 
     /**
@@ -53,6 +58,8 @@ public abstract class AbstractEasyDocAction extends AnAction {
         if (file == null) {
             return null;
         }
+        // 延迟初始化
+        initProcessorMap();
         return PROCESSOR_MAP.get(file.getFileType().getName());
     }
 

@@ -1,65 +1,85 @@
 plugins {
     id 'java'
-    id 'org.jetbrains.intellij' version '1.17.3'
+    id 'org.jetbrains.intellij.platform' version '2.1.0'
 }
 
-group 'io.github.easy.tools'
-version '1.0.0-SNAPSHOT'
+// 配置构建时显示更清晰的信息
+group = providers.gradleProperty('pluginGroup').get()
+version = providers.gradleProperty('pluginVersion').get()
 
 repositories {
-    maven {
-        url 'https://maven.aliyun.com/repository/public'
-    }
-    maven {
-        url 'https://maven.aliyun.com/repository/jcenter'
-    }
-    maven {
-        url 'https://maven.aliyun.com/repository/google'
-    }
-    maven {
-        url 'https://maven.aliyun.com/repository/central'
-    }
     mavenCentral()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 dependencies {
-    implementation 'cn.hutool:hutool-all:5.8.24'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    // IntelliJ Platform依赖 (2.x新语法)
+    intellijPlatform {
+        create(providers.gradleProperty('platformType'), providers.gradleProperty('platformVersion'))
 
-    compileOnly 'org.projectlombok:lombok:1.18.36'
-    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+        // 绑定插件
+        bundledPlugin('com.intellij.java')
 
-    testImplementation 'junit:junit:4.13.2'
-    testImplementation platform('org.junit:junit-bom:5.9.1')
+        // 插件开发工具
+        instrumentationTools()
+
+        // 插件验证器
+        pluginVerifier()
+    }
+
+    // 第三方依赖
+    implementation "cn.hutool:hutool-all:${providers.gradleProperty('hutool.version').get()}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${providers.gradleProperty('jackson.version').get()}"
+    implementation "org.apache.velocity:velocity-engine-core:${providers.gradleProperty('velocity.version').get()}"
+
+    compileOnly "org.projectlombok:lombok:${providers.gradleProperty('lombok.version').get()}"
+    annotationProcessor "org.projectlombok:lombok:${providers.gradleProperty('lombok.version').get()}"
+
+    // 测试依赖
+    testImplementation "junit:junit:${providers.gradleProperty('junit4.version').get()}"
+    testImplementation platform("org.junit:junit-bom:${providers.gradleProperty('junit5.version').get()}")
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
-// 配置Java编译选项
-compileJava {
+// Java编译配置
+tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    sourceCompatibility = '17'
-    targetCompatibility = '17'
+    sourceCompatibility = providers.gradleProperty('javaVersion').get()
+    targetCompatibility = providers.gradleProperty('javaVersion').get()
 }
 
-task {
+tasks {
     runIde {
-        jvmArgs = List.of("-XX:AllowEnhancedClassRedefinition")
+        jvmArgs = ['-XX:+AllowEnhancedClassRedefinition']
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
 
-// 配置测试选项
-test {
-    useJUnitPlatform()
-}
+// 配置IntelliJ平台插件 2.x
+intellijPlatform {
+    pluginConfiguration {
+        name = providers.gradleProperty('pluginName')
+        version = providers.gradleProperty('pluginVersion')
 
-// 配置IntelliJ平台插件
-intellij {
-    version = '2024.3.2'
-    type = 'IC'
-    plugins = ['com.intellij.java']
-}
+        ideaVersion {
+            sinceBuild = providers.gradleProperty('platformSinceBuild')
+            untilBuild = providers.gradleProperty('platformUntilBuild')
+        }
+    }
 
-patchPluginXml {
-    sinceBuild = '241'
-    untilBuild = '252.*'
+    // 插件验证配置 - 验证多个IDE版本兼容性
+    pluginVerification {
+        ides {
+            ide('IC', '2024.1')
+            ide('IC', '2024.2')
+            ide('IC', '2024.3')
+            ide('IC', '2025.1')
+        }
+    }
 }
