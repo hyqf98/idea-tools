@@ -6,6 +6,7 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
+import io.github.easy.tools.ui.config.FeatureToggleService;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -78,5 +79,19 @@ public class ApiManagerToolWindowFactory implements ToolWindowFactory {
             // 初始化面板数据
             apiManagerPanel.refreshApiList();
         }
+    }
+
+    /**
+     * 判断工具窗口是否应该可用
+     * <p>
+     * 根据功能开关配置决定是否显示此工具窗口
+     * </p>
+     *
+     * @param project 当前项目
+     * @return 如果功能启用返回true，否则返回false
+     */
+    @Override
+    public boolean isApplicable(@NotNull Project project) {
+        return FeatureToggleService.getInstance().isApiManagerToolWindowEnabled();
     }
 }

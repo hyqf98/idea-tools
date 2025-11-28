@@ -6,6 +6,8 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import io.github.easy.tools.service.doc.processor.CommentProcessor;
+import io.github.easy.tools.ui.config.FeatureToggleService;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * 使用AI生成元素注释操作类
@@ -40,5 +42,20 @@ public class GenerateElementCommentByAiAction extends AbstractEasyDocAction {
 
         // 使用AI生成元素注释
         processor.generateElementCommentByAi(file, element);
+    }
+
+    /**
+     * 更新动作状态
+     * <p>
+     * 根据功能开关配置决定是否启用此动作
+     * </p>
+     *
+     * @param e 动作事件对象
+     */
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setEnabledAndVisible(
+                FeatureToggleService.getInstance().isGenerateElementCommentByAiEnabled()
+        );
     }
 }

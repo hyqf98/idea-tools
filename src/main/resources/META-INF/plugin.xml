@@ -26,6 +26,10 @@
       &nbsp;&nbsp;* Recursive annotation processing for meta-annotations<br/>
       &nbsp;&nbsp;* Search and filter APIs by name, URL, method, or class<br/>
       &nbsp;&nbsp;* Quick API search with Ctrl+\ shortcut for fast navigation<br/>
+      - Project view comment display<br/>
+      &nbsp;&nbsp;* Show JavaDoc comments for files and packages in project tree<br/>
+      &nbsp;&nbsp;* Display package-info.java descriptions for directories<br/>
+      &nbsp;&nbsp;* Display class JavaDoc for Java files<br/>
     ]]></description>
 
     <!-- Product and plugin compatibility requirements. -->
@@ -37,11 +41,20 @@
         <!-- 注册自定义JavaDoc声明检查工具，用于动态注册非标准标签 -->
         <applicationService serviceImplementation="io.github.easy.tools.service.doc.JavaDocTagRegistrarService"/>
 
+        <!-- 注册项目视图节点装饰器，用于在文件列表中显示注释 -->
+        <projectViewNodeDecorator implementation="io.github.easy.tools.comment.FileCommentDecorator"/>
     </extensions>
 
     <!-- Plugin metadata -->
     <change-notes><![CDATA[
-    Added API management functionality:<br/>
+    Added project view comment display functionality:<br/>
+    - Display JavaDoc comments in project tree view<br/>
+    - Show package-info.java descriptions for directories<br/>
+    - Show class JavaDoc for Java files<br/>
+    - Automatic comment extraction and display<br/>
+    - Thread-safe PSI element access<br/>
+    <br/>
+    Previous updates:<br/>
     - API interface management panel in IDEA's right sidebar<br/>
     - Spring MVC annotation support (@RestController, @Controller, @RequestMapping, etc.)<br/>
     - Recursive annotation processing for meta-annotations<br/>
@@ -61,11 +74,13 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.DocConfigService"/>
+        <applicationService serviceImplementation="io.github.easy.tools.ui.config.FeatureToggleService"/>
         <applicationConfigurable
                 parentId="other"
                 instance="io.github.easy.tools.ui.config.DocConfig"
                 id="io.github.easy.tools.ui.config.TemplateConfig"
                 displayName="Easy Config">
+            <configurable instance="io.github.easy.tools.ui.config.FeatureToggleConfig" id="io.github.easy.tools.ui.config.FeatureToggleConfig" displayName="Feature Toggle"/>
             <configurable instance="io.github.easy.tools.ui.config.DocConfig" id="io.github.easy.tools.ui.config.BaseTemplateConfig" displayName="Doc Config"/>
             <configurable instance="io.github.easy.tools.ui.config.LLMConfig" id="io.github.easy.tools.ui.config.LLMConfig" displayName="LLM Config"/>
         </applicationConfigurable>

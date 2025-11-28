@@ -4,6 +4,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.psi.PsiFile;
 import io.github.easy.tools.service.doc.processor.CommentProcessor;
+import io.github.easy.tools.ui.config.FeatureToggleService;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * 使用AI生成文件注释操作类
@@ -31,5 +33,20 @@ public class GenerateFileCommentByAiAction extends AbstractEasyDocAction {
 
         // 使用AI生成文件注释
         processor.generateFileCommentByAi(file);
+    }
+
+    /**
+     * 更新动作状态
+     * <p>
+     * 根据功能开关配置决定是否启用此动作
+     * </p>
+     *
+     * @param e 动作事件对象
+     */
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+        e.getPresentation().setEnabledAndVisible(
+                FeatureToggleService.getInstance().isGenerateFileCommentByAiEnabled()
+        );
     }
 }

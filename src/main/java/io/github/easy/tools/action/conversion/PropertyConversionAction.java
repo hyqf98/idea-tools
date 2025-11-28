@@ -13,6 +13,7 @@ import com.intellij.openapi.ui.popup.ListPopup;
 import com.intellij.openapi.ui.popup.PopupStep;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
 import com.intellij.psi.PsiDocumentManager;
+import io.github.easy.tools.ui.config.FeatureToggleService;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -173,6 +174,12 @@ public class PropertyConversionAction extends AnAction {
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        // 检查功能是否启用
+        if (!FeatureToggleService.getInstance().isPropertyConversionEnabled()) {
+            e.getPresentation().setEnabledAndVisible(false);
+            return;
+        }
+        
         // 只有当有选中文本时才启用该操作
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         if (editor != null) {

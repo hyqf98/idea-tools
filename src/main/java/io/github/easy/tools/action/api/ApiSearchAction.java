@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.project.Project;
 import io.github.easy.tools.ui.api.ApiSearchDialog;
+import io.github.easy.tools.ui.config.FeatureToggleService;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -87,6 +88,12 @@ public class ApiSearchAction extends AnAction {
      */
     @Override
     public void update(@NotNull AnActionEvent e) {
+        // 检查功能是否启用
+        if (!FeatureToggleService.getInstance().isApiSearchActionEnabled()) {
+            e.getPresentation().setEnabledAndVisible(false);
+            return;
+        }
+        
         // 只在有项目打开时启用此动作
         Project project = e.getProject();
         e.getPresentation().setEnabledAndVisible(project != null);
