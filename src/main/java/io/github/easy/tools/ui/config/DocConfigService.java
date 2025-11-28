@@ -1,9 +1,10 @@
 package io.github.easy.tools.ui.config;
 
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.util.StrUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
+
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
@@ -23,6 +24,7 @@ import java.util.Map;
  * 使用IntelliJ平台的持久化机制来保存和加载配置。
  * </p>
  */
+@Service(Service.Level.APP)
 @State(name = "EasyDocConfig", storages = @Storage("easy-doc-config.xml"))
 public final class DocConfigService implements PersistentStateComponent<DocConfigService> {
 
@@ -55,55 +57,6 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
 
 
 
-    /**
-     * AI模型的基础URL
-     */
-    public String baseUrl = "";
-
-    /**
-     * AI模型名称
-     */
-    public String modelName = "";
-
-    /**
-     * AI模型类型
-     */
-    public String modelType = "openai";
-
-    /**
-     * AI模型API密钥
-     */
-    public String apiKey = "";
-
-    /**
-     * 请求超时时间（毫秒）
-     */
-    public int timeout = 300000;
-
-    /**
-     * 温度参数，控制生成文本的随机性
-     */
-    public double temperature = 0.7;
-
-    /**
-     * Top-p参数，控制生成文本的多样性
-     */
-    public double topP = 1.0;
-
-    /**
-     * Top-k参数，控制生成文本的多样性
-     */
-    public int topK = 40;
-
-    /**
-     * 是否开启思考模式
-     */
-    public boolean enableReasoning = false;
-
-    /**
-     * 最大生成令牌数
-     */
-    public int maxTokens = 2048;
 
     /** 类注释模板默认值 */
     public static final String DEFAULT_CLASS_TEMPLATE = """

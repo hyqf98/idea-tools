@@ -2,6 +2,7 @@ package io.github.easy.tools.ui.config;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
@@ -26,65 +27,64 @@ import org.jetbrains.annotations.Nullable;
  * @author haijun
  * @since 1.0.0
  */
+@Service(Service.Level.APP)
 @State(
         name = "FeatureToggleService",
         storages = @Storage("EasyToolsFeatureToggle.xml")
 )
-public class FeatureToggleService implements PersistentStateComponent<FeatureToggleService> {
+public final class FeatureToggleService implements PersistentStateComponent<FeatureToggleService> {
 
-    // ========== JavaDoc功能组 ==========
-    
     /**
      * 生成文件注释功能开关
      */
     public boolean generateFileCommentEnabled = true;
-    
+
     /**
      * 生成元素注释功能开关
      */
     public boolean generateElementCommentEnabled = true;
-    
+
     /**
      * AI生成文件注释功能开关
      */
     public boolean generateFileCommentByAiEnabled = true;
-    
+
     /**
      * AI生成元素注释功能开关
      */
     public boolean generateElementCommentByAiEnabled = true;
-    
+
     /**
      * 删除元素注释功能开关
      */
     public boolean removeElementCommentsEnabled = true;
-    
+
     /**
      * 删除文件注释功能开关
      */
     public boolean removeFileCommentsEnabled = true;
 
     // ========== 属性转换功能 ==========
-    
+
     /**
      * 属性转换功能开关
      */
     public boolean propertyConversionEnabled = true;
 
     // ========== API管理功能 ==========
-    
+
     /**
      * API管理工具窗口功能开关
      */
     public boolean apiManagerToolWindowEnabled = true;
-    
+
     /**
      * API搜索功能开关
      */
     public boolean apiSearchActionEnabled = true;
 
     // ========== 项目视图功能 ==========
-    
+
     /**
      * 文件注释装饰器功能开关(项目树中显示注释)
      */
@@ -123,7 +123,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     // ========== Getter/Setter方法 ==========
 
     public boolean isGenerateFileCommentEnabled() {
-        return generateFileCommentEnabled;
+        return this.generateFileCommentEnabled;
     }
 
     public void setGenerateFileCommentEnabled(boolean generateFileCommentEnabled) {
@@ -131,7 +131,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isGenerateElementCommentEnabled() {
-        return generateElementCommentEnabled;
+        return this.generateElementCommentEnabled;
     }
 
     public void setGenerateElementCommentEnabled(boolean generateElementCommentEnabled) {
@@ -139,7 +139,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isGenerateFileCommentByAiEnabled() {
-        return generateFileCommentByAiEnabled;
+        return this.generateFileCommentByAiEnabled;
     }
 
     public void setGenerateFileCommentByAiEnabled(boolean generateFileCommentByAiEnabled) {
@@ -147,7 +147,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isGenerateElementCommentByAiEnabled() {
-        return generateElementCommentByAiEnabled;
+        return this.generateElementCommentByAiEnabled;
     }
 
     public void setGenerateElementCommentByAiEnabled(boolean generateElementCommentByAiEnabled) {
@@ -155,7 +155,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isRemoveElementCommentsEnabled() {
-        return removeElementCommentsEnabled;
+        return this.removeElementCommentsEnabled;
     }
 
     public void setRemoveElementCommentsEnabled(boolean removeElementCommentsEnabled) {
@@ -163,7 +163,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isRemoveFileCommentsEnabled() {
-        return removeFileCommentsEnabled;
+        return this.removeFileCommentsEnabled;
     }
 
     public void setRemoveFileCommentsEnabled(boolean removeFileCommentsEnabled) {
@@ -171,7 +171,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isPropertyConversionEnabled() {
-        return propertyConversionEnabled;
+        return this.propertyConversionEnabled;
     }
 
     public void setPropertyConversionEnabled(boolean propertyConversionEnabled) {
@@ -179,7 +179,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isApiManagerToolWindowEnabled() {
-        return apiManagerToolWindowEnabled;
+        return this.apiManagerToolWindowEnabled;
     }
 
     public void setApiManagerToolWindowEnabled(boolean apiManagerToolWindowEnabled) {
@@ -187,7 +187,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isApiSearchActionEnabled() {
-        return apiSearchActionEnabled;
+        return this.apiSearchActionEnabled;
     }
 
     public void setApiSearchActionEnabled(boolean apiSearchActionEnabled) {
@@ -195,7 +195,7 @@ public class FeatureToggleService implements PersistentStateComponent<FeatureTog
     }
 
     public boolean isFileCommentDecoratorEnabled() {
-        return fileCommentDecoratorEnabled;
+        return this.fileCommentDecoratorEnabled;
     }
 
     public void setFileCommentDecoratorEnabled(boolean fileCommentDecoratorEnabled) {

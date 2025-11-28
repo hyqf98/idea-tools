@@ -112,7 +112,7 @@ public final class LLMConstants {
         /** 默认Top-k参数 (整数，推荐50) */
         public static final int TOP_K = 50;
         /** 默认最大令牌数 (推荐4096) */
-        public static final int MAX_TOKENS = 4096;
+        public static final int MAX_TOKENS = 12800;
         /** 默认思考模式开关 */
         public static final boolean ENABLE_REASONING = false;
 

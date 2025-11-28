@@ -2,6 +2,8 @@ package io.github.easy.tools.ui.config;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
+
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
@@ -23,8 +25,9 @@ import java.util.Map;
  * @version 1.0.0
  * @since 1.0.0
  */
+@Service(Service.Level.APP)
 @State(name = "LLMConfigState", storages = @Storage("llm-config-state.xml"))
-public class LLMConfigState implements PersistentStateComponent<LLMConfigState> {
+public final class LLMConfigState implements PersistentStateComponent<LLMConfigState> {
 
     /**
      * 默认使用的模型类型
