@@ -21,14 +21,12 @@ import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.util.PsiTypesUtil;
 import io.github.easy.tools.entity.doc.ParameterInfo;
-import io.github.easy.tools.service.doc.ai.AIDocProcessor;
-import io.github.easy.tools.service.doc.ai.AIProvider;
-import io.github.easy.tools.service.doc.ai.AIRequest;
-import io.github.easy.tools.service.doc.ai.JavaAiDocProcessor;
-import io.github.easy.tools.service.doc.ai.OllamaProvider;
-import io.github.easy.tools.service.doc.ai.OpenAIProvider;
+import io.github.easy.tools.service.doc.processor.AICommentProcessor;
 import io.github.easy.tools.service.doc.velocity.VelocityTemplateRenderer;
+import io.github.easy.tools.service.llm.AIRequest;
+import io.github.easy.tools.service.llm.LLMService;
 import io.github.easy.tools.ui.config.DocConfigService;
+import io.github.easy.tools.ui.config.LLMConfigState;
 import io.github.easy.tools.utils.NotificationUtil;
 import io.github.easy.tools.utils.StrConverter;
 import org.apache.velocity.VelocityContext;
@@ -63,26 +61,32 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
     private static final Map<String, DocCommentComparator> COMMENT_COMPARATOR_MAP = new ConcurrentHashMap<>();
 
     /**
-     * AI文档处理器映射
-     */
-    private static final Map<String, AIDocProcessor> AI_DOC_PROCESSOR_MAP = new HashMap<>();
-
-    /**
      * Velocity模板渲染器
      */
     private static final VelocityTemplateRenderer VELOCITY_RENDERER = new VelocityTemplateRenderer();
 
     /**
-     * AI服务提供商
+     * AI注释处理器实例
      */
-    private AIProvider aiProvider;
+    private static final AICommentProcessor AI_COMMENT_PROCESSOR = new AICommentProcessor();
 
     /**
-     * 静态初始化块，初始化注释比较器映射和AI文档处理器映射
+     * LLM服务实例
+     */
+    private final LLMService llmService;
+
+    /**
+     * 静态初始化块，初始化注释比较器映射
      */
     static {
         COMMENT_COMPARATOR_MAP.put("JAVA", new JavaDocCommentComparator());
-        AI_DOC_PROCESSOR_MAP.put("JAVA", new JavaAiDocProcessor());
+    }
+
+    /**
+     * 构造函数，初始化LLM服务
+     */
+    public JavaCommentGenerationStrategy() {
+        this.llmService = LLMService.getInstance();
     }
 
     /**
@@ -90,6 +94,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
      *
      * @param type 元素类型
      * @return 对应的文档处理器
+     * @since 1.0.0
      */
     private DocHandler getDocHandler(String type) {
         return docHandlerMap.computeIfAbsent(type, k -> {
@@ -104,27 +109,6 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                     throw new IllegalArgumentException("Unsupported element type: " + k);
             }
         });
-    }
-
-    /**
-     * 创建AI服务提供商
-     *
-     * @return AI服务提供商实例
-     */
-    private AIProvider createAIProvider() {
-        if (this.aiProvider != null) {
-            return this.aiProvider;
-        }
-        DocConfigService config = DocConfigService.getInstance();
-        switch (config.modelType) {
-            case "ollama":
-                this.aiProvider = new OllamaProvider();
-                break;
-            case "openai":
-            default:
-                this.aiProvider = new OpenAIProvider();
-        }
-        return this.aiProvider;
     }
 
     /**
@@ -259,10 +243,11 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
      * @param element 元素
      */
     private void generateWithAi(PsiFile file, PsiElement element) {
-        DocConfigService config = DocConfigService.getInstance();
+        LLMConfigState configState = LLMConfigState.getInstance();
+        LLMConfigState.ModelConfig modelConfig = configState.getDefaultModelConfig();
 
         // 检查AI配置
-        if (config.baseUrl == null || config.baseUrl.isEmpty()) {
+        if (StrUtil.isBlank(modelConfig.baseUrl) || StrUtil.isBlank(modelConfig.modelName)) {
             NotificationUtil.showWarning(file.getProject(), "请先配置大模型相关信息");
             return;
         }
@@ -289,34 +274,34 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         String elementText = ReadAction.compute(() -> element.getText());
 
         // 构建AI请求
-        String prompt = this.buildAiPrompt(file, element, templateContent, context, elementText);
+        String prompt = this.buildAiPrompt(element, templateContent, context, elementText);
         if (StrUtil.isBlank(prompt)) {
-            NotificationUtil.showWarning(file.getProject(), "不支持的文件类型");
+            NotificationUtil.showWarning(file.getProject(), "无法生成AI提示词");
             return;
         }
 
         // 先生成占位符注释
         Project project = file.getProject();
         PsiElementFactory elementFactory = JavaPsiFacade.getElementFactory(project);
-        String placeholderDoc = this.getAiPlaceholder(file, "正在等待AI生成注释，生成后将会进行替换");
+        String placeholderDoc = AI_COMMENT_PROCESSOR.getPlaceholderDoc("正在等待AI生成注释，生成后将会进行替换");
         PsiElement docCommentFromText = elementFactory.createDocCommentFromText(placeholderDoc);
         this.writeDoc(project, element, docCommentFromText);
 
-        // 异步调用AI生成
-        AIRequest request = new AIRequest();
-        request.setModel(config.modelName);
-        request.setPrompt(prompt);
-        request.setTemperature(config.temperature);
-        request.setTopP(config.topP);
-        request.setTopK(config.topK);
-        request.setMaxTokens(config.maxTokens);
-        request.setEnableReasoning(config.enableReasoning);
-        request.setStream(false);
+        // 异步调用AI生成 - 使用默认模型配置
+        AIRequest request = AIRequest.builder()
+                .model(modelConfig.modelName)
+                .prompt(prompt)
+                .temperature(modelConfig.temperature)
+                .topP(modelConfig.topP)
+                .topK(modelConfig.topK)
+                .maxTokens(modelConfig.maxTokens)
+                .enableReasoning(modelConfig.enableReasoning)
+                .stream(false)
+                .build();
 
         CompletableFuture.supplyAsync(() -> {
             try {
-                AIProvider provider = this.createAIProvider();
-                return provider.sendRequest(request);
+                return this.llmService.sendRequest(request);
             } catch (Exception e) {
                 NotificationUtil.showError(project, "AI服务调用失败: " + e.getMessage());
                 return null;
@@ -324,7 +309,8 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
         }).thenAccept(result -> {
             if (result != null && !result.isEmpty()) {
                 ApplicationManager.getApplication().invokeLater(() -> {
-                    this.updateAiComment(file, element, result);
+                    String doc = AI_COMMENT_PROCESSOR.extractCommentFromResponse(result);
+                    AI_COMMENT_PROCESSOR.updateDoc(element, doc);
                 });
             }
         }).exceptionally(throwable -> {
@@ -354,20 +340,14 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
     /**
      * 构建AI提示词
      *
-     * @param file            文件
      * @param element         元素
      * @param templateContent 模板内容
      * @param context         上下文
      * @param elementText     元素文本
      * @return AI提示词
+     * @since 1.0.0
      */
-    private String buildAiPrompt(PsiFile file, PsiElement element, String templateContent, Context context, String elementText) {
-        String fileType = file.getFileType().getName();
-        AIDocProcessor aiDocProcessor = AI_DOC_PROCESSOR_MAP.get(fileType);
-        if (aiDocProcessor == null) {
-            return "";
-        }
-
+    private String buildAiPrompt(PsiElement element, String templateContent, Context context, String elementText) {
         // 构建上下文信息字符串
         StringBuilder contextInfo = new StringBuilder();
         String[] keys = ReadAction.compute(() -> context.getKeys());
@@ -376,42 +356,10 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             contextInfo.append(key).append(": ").append(value).append("\n");
         });
 
-        return aiDocProcessor.getPromptByType(element)
+        return AI_COMMENT_PROCESSOR.getPromptByType(element)
                 .replace("{code}", elementText)
                 .replace("{template}", templateContent)
                 .replace("{context}", contextInfo.toString());
-    }
-
-    /**
-     * 获取AI占位符
-     *
-     * @param file    文件
-     * @param message 消息
-     * @return 占位符文档
-     */
-    private String getAiPlaceholder(PsiFile file, String message) {
-        String fileType = file.getFileType().getName();
-        AIDocProcessor aiDocProcessor = AI_DOC_PROCESSOR_MAP.get(fileType);
-        if (aiDocProcessor != null) {
-            return aiDocProcessor.getPlaceholderDoc(message);
-        }
-        return "";
-    }
-
-    /**
-     * 更新AI生成的注释
-     *
-     * @param file     文件
-     * @param element  元素
-     * @param response AI响应
-     */
-    private void updateAiComment(PsiFile file, PsiElement element, String response) {
-        String fileType = file.getFileType().getName();
-        AIDocProcessor aiDocProcessor = AI_DOC_PROCESSOR_MAP.get(fileType);
-        if (aiDocProcessor != null) {
-            String doc = aiDocProcessor.extractCommentFromResponse(response);
-            aiDocProcessor.updateDoc(element, doc);
-        }
     }
 
     /**
@@ -420,6 +368,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
      * @param element   需要生成注释的元素
      * @param overwrite 是否覆盖已存在的注释
      * @param useAi     是否使用AI生成
+     * @since 1.0.0
      */
     private void generateCommentsRecursively(PsiElement element, boolean overwrite, boolean useAi) {
         // 为当前元素生成注释
@@ -613,21 +562,25 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
         /**
          * 构建 Velocity 上下文
+         * <p>
+         * 优化后的上下文构建，按照顺序添加：基础参数 -> 自定义参数 -> 元素特定参数
+         * </p>
          *
          * @param file    文件
          * @param element 元素
          * @return Velocity上下文
+         * @since 1.0.0
          */
         protected Context createContext(PsiFile file, P element) {
             VelocityContext context = new VelocityContext();
 
-            // 添加基础参数到上下文
+            // 1. 添加基础参数
             this.addBaseParameters(context, file);
 
-            // 添加自定义参数到上下文
+            // 2. 添加自定义参数
             this.addCustomParameters(context);
 
-            // 添加特定元素参数到上下文
+            // 3. 添加元素特定参数
             this.addElementSpecificParameters(context, element);
 
             return context;
@@ -635,27 +588,34 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
         /**
          * 添加基础参数到上下文
+         * <p>
+         * 使用Stream API优化参数添加过程
+         * </p>
          *
          * @param context Velocity上下文
          * @param file    当前文件
+         * @since 1.0.0
          */
         private void addBaseParameters(VelocityContext context, PsiFile file) {
-            Map<String, Object> baseParameters = this.getBaseParameters(file);
-            for (Map.Entry<String, Object> entry : baseParameters.entrySet()) {
-                context.put(entry.getKey(), entry.getValue());
-            }
+            this.getBaseParameters(file).forEach(context::put);
         }
 
         /**
          * 添加自定义参数到上下文
+         * <p>
+         * 使用Stream API优化参数添加，仅处理有效的参数
+         * </p>
          *
          * @param context Velocity上下文
+         * @since 1.0.0
          */
         private void addCustomParameters(VelocityContext context) {
-            List<Map<String, Object>> customParameters = this.getCustomParameters();
-            for (Map<String, Object> param : customParameters) {
-                context.put(MapUtil.getStr(param, "name"), param.get("value"));
-            }
+            DocConfigService.getInstance().customParameters.stream()
+                    .filter(param -> param != null && param.containsKey("name"))
+                    .forEach(param -> context.put(
+                            MapUtil.getStr(param, "name"), 
+                            param.get("value")
+                    ));
         }
 
         /**
@@ -668,13 +628,16 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
         /**
          * 获取基础参数列表
+         * <p>
+         * 从配置中获取基础参数，并设置项目版本号
+         * </p>
          *
          * @param file 文件
          * @return 基础参数列表
+         * @since 1.0.0
          */
         private Map<String, Object> getBaseParameters(PsiFile file) {
             Map<String, Object> baseParameters = DocConfigService.getInstance().getBaseParameters();
-            // 替换version
             String version = this.getProjectVersion(file);
             baseParameters.put(DocConfigService.PARAM_VERSION, version);
             baseParameters.put(DocConfigService.PARAM_SINCE, version);
@@ -736,15 +699,6 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                 // 如果解析失败，使用默认版本号
             }
             return version;
-        }
-
-        /**
-         * 获取用户自定义参数列表
-         *
-         * @return 自定义参数列表
-         */
-        private List<Map<String, Object>> getCustomParameters() {
-            return DocConfigService.getInstance().customParameters;
         }
     }
 

@@ -10,26 +10,150 @@
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-      Easy Tools for IntelliJ IDEA - Enhancing Java development with powerful documentation capabilities and API management.<br/>
-      Features include:<br/>
-      - Customizable JavaDoc templates (class, field, method)<br/>
-      - Context menu actions for generating/removing comments<br/>
-      - Velocity template engine support<br/>
-      - Extensible architecture for future enhancements<br/>
-      - Property name conversion utilities<br/>
-      - API interface management with Spring MVC and Swagger/OpenAPI annotation support<br/>
-      &nbsp;&nbsp;* Scan and display all REST APIs in your project<br/>
-      &nbsp;&nbsp;* Display Controller descriptions from Swagger/OpenAPI annotations<br/>
-      &nbsp;&nbsp;* Group APIs by Controller for better organization<br/>
-      &nbsp;&nbsp;* Support for @RestController, @Controller, and various HTTP method annotations<br/>
-      &nbsp;&nbsp;* Support for Swagger/OpenAPI annotations (@Operation, @Tag, etc.)<br/>
-      &nbsp;&nbsp;* Recursive annotation processing for meta-annotations<br/>
-      &nbsp;&nbsp;* Search and filter APIs by name, URL, method, or class<br/>
-      &nbsp;&nbsp;* Quick API search with Ctrl+\ shortcut for fast navigation<br/>
-      - Project view comment display<br/>
-      &nbsp;&nbsp;* Show JavaDoc comments for files and packages in project tree<br/>
-      &nbsp;&nbsp;* Display package-info.java descriptions for directories<br/>
-      &nbsp;&nbsp;* Display class JavaDoc for Java files<br/>
+      <h2>Easy Tools - IDEA 开发效率工具集</h2>
+      <p>一款全面的生产力插件,通过强大的 JavaDoc 生成、AI 集成、API 管理和实用工具来增强 Java 开发体验。</p>
+      
+      <h3>✨ 核心功能</h3>
+      
+      <h4>📝 1. JavaDoc 注释生成</h4>
+      <ul>
+        <li><b>双模式生成:</b>
+          <ul>
+            <li>基于可自定义 Velocity 模板的传统生成方式</li>
+            <li>AI 驱动的智能注释生成</li>
+          </ul>
+        </li>
+        <li><b>多层级支持:</b>
+          <ul>
+            <li>文件级别: 为整个 Java 文件生成注释 (Alt+Shift+J)</li>
+            <li>元素级别: 为类、方法、字段生成注释 (Alt+J)</li>
+          </ul>
+        </li>
+        <li><b>注释管理:</b>
+          <ul>
+            <li>删除元素或整个文件的注释</li>
+            <li>文件保存时自动生成(可配置)</li>
+            <li>覆盖或保留现有注释</li>
+          </ul>
+        </li>
+        <li><b>可定制模板:</b>
+          <ul>
+            <li>类、方法和字段模板</li>
+            <li>Velocity 模板引擎支持</li>
+            <li>自定义 JavaDoc 标签注册</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h4>🤖 2. AI 智能集成</h4>
+      <ul>
+        <li><b>多提供商支持:</b>
+          <ul>
+            <li>OpenAI GPT</li>
+            <li>Anthropic Claude</li>
+            <li>Google Gemini</li>
+            <li>Ollama (本地模型)</li>
+            <li>DeepSeek</li>
+            <li>阿里云通义千问</li>
+            <li>智谱清言 GLM</li>
+            <li>百度文心一言</li>
+            <li>Azure OpenAI</li>
+          </ul>
+        </li>
+        <li><b>智能注释生成:</b>
+          <ul>
+            <li>上下文感知的 JavaDoc 生成</li>
+            <li>代码分析与智能描述</li>
+            <li>提供商缓存以提升性能</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h4>🌐 3. API 接口管理</h4>
+      <ul>
+        <li><b>API 扫描器:</b>
+          <ul>
+            <li>自动扫描 Spring MVC REST 接口</li>
+            <li>支持 @RestController 和 @Controller</li>
+            <li>HTTP 方法注解 (@GetMapping、@PostMapping 等)</li>
+            <li>递归处理元注解</li>
+          </ul>
+        </li>
+        <li><b>Swagger/OpenAPI 集成:</b>
+          <ul>
+            <li>支持 @Operation、@Tag 注解</li>
+            <li>提取 API 名称和描述</li>
+            <li>Controller 分组和描述</li>
+          </ul>
+        </li>
+        <li><b>API 工具窗口:</b>
+          <ul>
+            <li>按 Controller 分组的树形视图</li>
+            <li>实时增量扫描</li>
+            <li>双击导航到源代码</li>
+            <li>显示 HTTP 方法和 URL 路径</li>
+          </ul>
+        </li>
+        <li><b>快速 API 搜索:</b>
+          <ul>
+            <li>快速搜索对话框 (Ctrl+\ 或 Cmd+\)</li>
+            <li>按名称、URL、方法或类筛选</li>
+            <li>即时导航到 API 方法</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h4>🛠️ 4. 开发辅助工具</h4>
+      <ul>
+        <li><b>属性名称转换器:</b>
+          <ul>
+            <li>在不同命名规范间转换 (Ctrl+Shift+U)</li>
+            <li>小驼峰/大驼峰格式 (userName、UserName)</li>
+            <li>小写/大写下划线格式 (user_name、USER_NAME)</li>
+            <li>记住上次选择以便快速转换</li>
+          </ul>
+        </li>
+        <li><b>项目视图注释装饰器:</b>
+          <ul>
+            <li>在项目树中显示 JavaDoc</li>
+            <li>显示 package-info.java 的包描述</li>
+            <li>显示 Java 文件的类描述</li>
+            <li>自动文本截断和工具提示</li>
+          </ul>
+        </li>
+        <li><b>功能开关系统:</b>
+          <ul>
+            <li>启用/禁用各个功能</li>
+            <li>跨 IDE 会话的持久化配置</li>
+            <li>集中式功能管理</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h3>⚙️ 配置说明</h3>
+      <p>设置 → 其他设置 → Easy Config</p>
+      <ul>
+        <li>功能开关: 启用/禁用特定功能</li>
+        <li>Java Doc 配置: 自定义注释模板</li>
+        <li>LLM 配置: 配置 AI 提供商和模型</li>
+      </ul>
+      
+      <h3>⌨️ 快捷键</h3>
+      <ul>
+        <li><b>Alt+Shift+J:</b> 生成文件注释</li>
+        <li><b>Alt+J:</b> 生成元素注释</li>
+        <li><b>Ctrl+Shift+U:</b> 转换属性命名</li>
+        <li><b>Ctrl+\:</b> 快速 API 搜索</li>
+      </ul>
+      
+      <h3>🎯 使用场景</h3>
+      <ul>
+        <li>在大型代码库中维护一致的 JavaDoc</li>
+        <li>借助 AI 快速为遗留代码编写文档</li>
+        <li>高效探索和导航 Spring MVC 接口</li>
+        <li>在团队项目中统一命名规范</li>
+        <li>提升项目浏览器中的代码可读性</li>
+      </ul>
     ]]></description>
 
     <!-- Product and plugin compatibility requirements. -->
@@ -38,50 +162,55 @@
 
     <!-- Extension points -->
     <extensions defaultExtensionNs="com.intellij">
-        <!-- 注册自定义JavaDoc声明检查工具，用于动态注册非标准标签 -->
-        <applicationService serviceImplementation="io.github.easy.tools.service.doc.JavaDocTagRegistrarService"/>
-
         <!-- 注册项目视图节点装饰器，用于在文件列表中显示注释 -->
         <projectViewNodeDecorator implementation="io.github.easy.tools.comment.FileCommentDecorator"/>
     </extensions>
 
     <!-- Plugin metadata -->
     <change-notes><![CDATA[
-    Added project view comment display functionality:<br/>
-    - Display JavaDoc comments in project tree view<br/>
-    - Show package-info.java descriptions for directories<br/>
-    - Show class JavaDoc for Java files<br/>
-    - Automatic comment extraction and display<br/>
-    - Thread-safe PSI element access<br/>
-    <br/>
-    Previous updates:<br/>
-    - API interface management panel in IDEA's right sidebar<br/>
-    - Spring MVC annotation support (@RestController, @Controller, @RequestMapping, etc.)<br/>
-    - Recursive annotation processing for meta-annotations<br/>
-    - Support for Swagger/OpenAPI annotations (@Operation, @Tag, etc.)<br/>
-    - Display Controller descriptions from Swagger/OpenAPI annotations<br/>
-    - Group APIs by Controller in tree structure view<br/>
-    - Fixed API path parameter display issues (missing closing braces)<br/>
-    - Fixed double-click navigation issue in tree view<br/>
-    - Fixed plugin startup and navigation issues by removing PSI element serialization<br/>
-    - Fixed tree node object handling for proper navigation<br/>
-    - Fixed custom tree node implementation to properly store and retrieve API info<br/>
-    - Fixed infinite recursion issue when processing circular annotation references<br/>
-    - Fixed thread safety issues when accessing PSI elements<br/>
-    - Implemented incremental scanning with real-time UI updates<br/>
-    - Double-click to navigate to the corresponding Java method<br/>
+    <h3>v1.0.0 - 最新更新</h3>
+    <h4>新增功能:</h4>
+    <ul>
+      <li>项目视图注释显示功能</li>
+      <li>在项目树中显示 JavaDoc 注释</li>
+      <li>显示目录的 package-info.java 描述</li>
+      <li>显示 Java 文件的类描述</li>
+      <li>自动提取和显示注释</li>
+      <li>线程安全的 PSI 元素访问</li>
+    </ul>
+    
+    <h4>历史更新:</h4>
+    <ul>
+      <li>IDEA 右侧边栏的 API 接口管理面板</li>
+      <li>Spring MVC 注解支持 (@RestController、@Controller、@RequestMapping 等)</li>
+      <li>元注解的递归处理</li>
+      <li>支持 Swagger/OpenAPI 注解 (@Operation、@Tag 等)</li>
+      <li>从 Swagger/OpenAPI 注解中提取 Controller 描述</li>
+      <li>在树形结构视图中按 Controller 分组 API</li>
+      <li>修复 API 路径参数显示问题(缺少右括号)</li>
+      <li>修复树形视图中的双击导航问题</li>
+      <li>通过移除 PSI 元素序列化修复插件启动和导航问题</li>
+      <li>修复树节点对象处理以实现正确导航</li>
+      <li>修复自定义树节点实现以正确存储和检索 API 信息</li>
+      <li>修复处理循环注解引用时的无限递归问题</li>
+      <li>修复访问 PSI 元素时的线程安全问题</li>
+      <li>实现带实时 UI 更新的增量扫描</li>
+      <li>双击导航到对应的 Java 方法</li>
+    </ul>
     ]]></change-notes>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.DocConfigService"/>
+        <applicationService serviceImplementation="io.github.easy.tools.ui.config.LLMConfigState"/>
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.FeatureToggleService"/>
+        <applicationService serviceImplementation="io.github.easy.tools.service.llm.LLMService"/>
         <applicationConfigurable
                 parentId="other"
                 instance="io.github.easy.tools.ui.config.DocConfig"
                 id="io.github.easy.tools.ui.config.TemplateConfig"
                 displayName="Easy Config">
             <configurable instance="io.github.easy.tools.ui.config.FeatureToggleConfig" id="io.github.easy.tools.ui.config.FeatureToggleConfig" displayName="Feature Toggle"/>
-            <configurable instance="io.github.easy.tools.ui.config.DocConfig" id="io.github.easy.tools.ui.config.BaseTemplateConfig" displayName="Doc Config"/>
+            <configurable instance="io.github.easy.tools.ui.config.DocConfig" id="io.github.easy.tools.ui.config.BaseTemplateConfig" displayName="Java Doc Config"/>
             <configurable instance="io.github.easy.tools.ui.config.LLMConfig" id="io.github.easy.tools.ui.config.LLMConfig" displayName="LLM Config"/>
         </applicationConfigurable>
         <applicationService serviceImplementation="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"/>

@@ -1,22 +1,37 @@
 package io.github.easy.tools.ui.config;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.options.Configurable;
-import com.intellij.uiDesigner.core.GridConstraints;
-import com.intellij.uiDesigner.core.GridLayoutManager;
+import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.JBCheckBox;
+import com.intellij.ui.components.JBTextField;
+import com.intellij.ui.components.JBScrollPane;
+import com.intellij.util.ui.JBUI;
+import io.github.easy.tools.constants.LLMConstants;
+import io.github.easy.tools.constants.PromptConstants;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
-import javax.swing.JCheckBox;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.border.TitledBorder;
+import javax.swing.JSlider;
+import javax.swing.JSpinner;
+import javax.swing.JTextArea;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.Objects;
 
@@ -36,71 +51,74 @@ public class LLMConfig implements Configurable {
     private JPanel mainPanel;
 
     /**
-     * AI配置面板
-     */
-    private JPanel aiContent;
-
-    /**
      * 模型基础URL输入框
      */
-    private JTextField baseUrl;
+    private JBTextField baseUrl;
 
     /**
      * 模型名称输入框
      */
-    private JTextField modelName;
-
-    /**
-     * 模型地址标签
-     */
-    private JLabel baseUrlTitle;
-
-    /**
-     * 模型名称标签
-     */
-    private JLabel modelNameTitle;
+    private JBTextField modelName;
 
     /**
      * 模型类型下拉框
      */
-    private JComboBox modelType;
+    private JComboBox<String> modelType;
 
     /**
-     * 模型类型标签
+     * API key输入框
      */
-    private JLabel modelTypeTitle;
-    /** Api key */
-    private JTextField apiKey;
-    /** Api key title */
-    private JLabel apiKeyTitle;
+    private JBTextField apiKey;
 
-    /** 超时时间输入框 */
-    private JTextField timeout;
-    /** 超时时间标签 */
-    private JLabel timeoutTitle;
+    /**
+     * 超时时间输入框(使用Spinner)
+     */
+    private JSpinner timeout;
 
-    /** 温度参数输入框 */
-    private JTextField temperature;
-    /** 温度参数标签 */
-    private JLabel temperatureTitle;
+    /**
+     * 温度参数滑块
+     */
+    private JSlider temperature;
+    
+    /**
+     * 温度参数标签
+     */
+    private JLabel temperatureValueLabel;
 
-    /** Top-p参数输入框 */
-    private JTextField topP;
-    /** Top-p参数标签 */
-    private JLabel topPTitle;
+    /**
+     * Top-p参数滑块
+     */
+    private JSlider topP;
+    
+    /**
+     * Top-p参数标签
+     */
+    private JLabel topPValueLabel;
 
-    /** Top-k参数输入框 */
-    private JTextField topK;
-    /** Top-k参数标签 */
-    private JLabel topKTitle;
+    /**
+     * Top-k参数输入框(使用Spinner)
+     */
+    private JSpinner topK;
 
-    /** 最大令牌数输入框 */
-    private JTextField maxTokens;
-    /** 最大令牌数标签 */
-    private JLabel maxTokensTitle;
+    /**
+     * 最大令牌数输入框(使用Spinner)
+     */
+    private JSpinner maxTokens;
 
-    /** 开启思考模式复选框 */
-    private JCheckBox enableReasoning;
+    /**
+     * 开启思考模式复选框
+     */
+    private JBCheckBox enableReasoning;
+
+    /**
+     * 设置为默认按钮
+     */
+    private JButton setDefaultButton;
+
+    /**
+     * 当前编辑的模型类型
+     */
+    private String currentEditingModelType = LLMConstants.ModelType.OPENAI;
 
     /**
      * 配置是否被修改的标志
@@ -127,8 +145,324 @@ public class LLMConfig implements Configurable {
      */
     @Override
     public @Nullable JComponent createComponent() {
+        this.mainPanel = new JPanel(new BorderLayout());
+        this.mainPanel.setBorder(JBUI.Borders.empty(10));
+
+        // 直接添加AI配置面板,不使用ScrollPane包装
+        JPanel aiConfigPanel = this.createAIConfigPanel();
+        this.mainPanel.add(aiConfigPanel, BorderLayout.NORTH);
+
         this.initEventListeners();
+        this.loadConfigData();
+        
         return this.mainPanel;
+    }
+
+    /**
+     * 创建AI配置面板
+     *
+     * @return AI配置面板
+     * @since y.y.y
+     */
+    private JPanel createAIConfigPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createTitledBorder("AI 配置"));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = JBUI.insets(3, 5, 3, 5);  // 统一使用JBUI设置间距
+        gbc.anchor = GridBagConstraints.WEST;
+        
+        int row = 0;
+        
+        // 模型类型
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+        JBLabel modelTypeLabel = new JBLabel("模型类型:", AllIcons.Nodes.DataTables, JLabel.LEFT);
+        panel.add(modelTypeLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        String[] modelTypes = {
+            LLMConstants.ModelDisplayName.OPENAI,
+            LLMConstants.ModelDisplayName.OLLAMA, 
+            LLMConstants.ModelDisplayName.AZURE,
+            LLMConstants.ModelDisplayName.GEMINI,
+            LLMConstants.ModelDisplayName.CLAUDE,
+            LLMConstants.ModelDisplayName.DEEPSEEK,
+            LLMConstants.ModelDisplayName.QWEN,
+            LLMConstants.ModelDisplayName.GLM,
+            LLMConstants.ModelDisplayName.WENXIN
+        };
+        this.modelType = new JComboBox<>(modelTypes);
+        panel.add(this.modelType, gbc);
+        row++;
+        
+        // 模型地址
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel baseUrlLabel = new JBLabel("模型地址:", AllIcons.General.Web, JLabel.LEFT);
+        panel.add(baseUrlLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        this.baseUrl = new JBTextField();
+        this.baseUrl.setToolTipText("请输入模型的API地址，例如: https://api.openai.com/v1");
+        panel.add(this.baseUrl, gbc);
+        row++;
+        
+        // 模型名称
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel modelNameLabel = new JBLabel("模型名称:", AllIcons.Actions.ModuleDirectory, JLabel.LEFT);
+        panel.add(modelNameLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        this.modelName = new JBTextField();
+        this.modelName.setToolTipText("请输入模型名称，例如: gpt-4, claude-3-opus, qwen-max");
+        panel.add(this.modelName, gbc);
+        row++;
+        
+        // API Key
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel apiKeyLabel = new JBLabel("API Key:", AllIcons.Nodes.SecurityRole, JLabel.LEFT);
+        panel.add(apiKeyLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        this.apiKey = new JBTextField();
+        this.apiKey.setToolTipText("请输入API密钥");
+        panel.add(this.apiKey, gbc);
+        row++;
+        
+        // 超时时间 (Spinner)
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel timeoutLabel = new JBLabel("超时时间(毫秒):", AllIcons.General.BalloonInformation, JLabel.LEFT);
+        panel.add(timeoutLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        SpinnerNumberModel timeoutModel = new SpinnerNumberModel(300000, 1000, 600000, 1000);
+        this.timeout = new JSpinner(timeoutModel);
+        this.timeout.setPreferredSize(new Dimension(150, -1));
+        panel.add(this.timeout, gbc);
+        row++;
+        
+        // 温度参数 (Slider)
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel tempLabel = new JBLabel("温度参数:", AllIcons.General.Settings, JLabel.LEFT);
+        panel.add(tempLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JPanel tempPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        this.temperature = new JSlider(0, 20, 7); // 0.0 to 2.0, default 0.7
+        this.temperature.setMajorTickSpacing(5);
+        this.temperature.setMinorTickSpacing(1);
+        this.temperature.setPaintTicks(true);
+        this.temperature.setPreferredSize(new Dimension(200, 40));
+        this.temperatureValueLabel = new JLabel("0.7");
+        this.temperature.addChangeListener(e -> {
+            double value = this.temperature.getValue() / 10.0;
+            this.temperatureValueLabel.setText(String.format("%.1f", value));
+        });
+        tempPanel.add(this.temperature);
+        tempPanel.add(this.temperatureValueLabel);
+        panel.add(tempPanel, gbc);
+        row++;
+        
+        // Top-p参数 (Slider)
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JBLabel topPLabel = new JBLabel("Top-p参数:", AllIcons.General.Settings, JLabel.LEFT);
+        panel.add(topPLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JPanel topPPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        this.topP = new JSlider(0, 100, 90); // 0.0 to 1.0, default 0.9
+        this.topP.setMajorTickSpacing(25);
+        this.topP.setMinorTickSpacing(5);
+        this.topP.setPaintTicks(true);
+        this.topP.setPreferredSize(new Dimension(200, 40));
+        this.topPValueLabel = new JLabel("0.90");
+        this.topP.addChangeListener(e -> {
+            double value = this.topP.getValue() / 100.0;
+            this.topPValueLabel.setText(String.format("%.2f", value));
+        });
+        topPPanel.add(this.topP);
+        topPPanel.add(this.topPValueLabel);
+        panel.add(topPPanel, gbc);
+        row++;
+        
+        // Top-k参数 (Spinner)
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+        JBLabel topKLabel = new JBLabel("Top-k参数:", AllIcons.General.Settings, JLabel.LEFT);
+        panel.add(topKLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JPanel topKPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        SpinnerNumberModel topKModel = new SpinnerNumberModel(50, 1, 100, 1);
+        this.topK = new JSpinner(topKModel);
+        this.topK.setPreferredSize(new Dimension(150, 30));
+        topKPanel.add(this.topK);
+        panel.add(topKPanel, gbc);
+        row++;
+        
+        // 最大令牌数 (Spinner) - 支持更大的值，允许输入200000
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+        JBLabel maxTokensLabel = new JBLabel("最大令牌数:", AllIcons.General.Settings, JLabel.LEFT);
+        panel.add(maxTokensLabel, gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JPanel maxTokensPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        SpinnerNumberModel maxTokensModel = new SpinnerNumberModel(4096, 1, 1000000, 128);
+        this.maxTokens = new JSpinner(maxTokensModel);
+        this.maxTokens.setPreferredSize(new Dimension(150, 30));
+        maxTokensPanel.add(this.maxTokens);
+        panel.add(maxTokensPanel, gbc);
+        row++;
+        
+        // 开启思考模式
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 2;
+        this.enableReasoning = new JBCheckBox("开启思考模式 (Chain of Thought)");
+        this.enableReasoning.setToolTipText("启用后，模型将显示思考过程");
+        panel.add(this.enableReasoning, gbc);
+        row++;
+        
+        // 设置为默认按钮
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 2;
+        gbc.insets = JBUI.insets(10, 5, 3, 5);
+        this.setDefaultButton = new JButton("设置为默认模型");
+        this.setDefaultButton.setToolTipText("将当前模型设置为默认使用的模型");
+        this.setDefaultButton.addActionListener(e -> this.setAsDefaultModel());
+        panel.add(this.setDefaultButton, gbc);
+        
+        return panel;
+    }
+
+    /**
+     * 加载配置数据
+     *
+     * @since y.y.y
+     */
+    private void loadConfigData() {
+        LLMConfigState configState = LLMConfigState.getInstance();
+        
+        // 设置当前默认模型类型
+        String displayType = this.mapModelTypeToDisplay(configState.defaultModelType);
+        this.modelType.setSelectedItem(displayType);
+        this.currentEditingModelType = configState.defaultModelType;
+        
+        // 加载默认模型的配置
+        this.loadModelConfig(configState.defaultModelType);
+        
+        // 更新按钮状态
+        this.updateDefaultButtonState();
+    }
+    
+    /**
+     * 加载指定模型类型的配置
+     *
+     * @param modelType 模型类型
+     * @since 1.0.0
+     */
+    private void loadModelConfig(String modelType) {
+        LLMConfigState configState = LLMConfigState.getInstance();
+        LLMConfigState.ModelConfig config = configState.getModelConfig(modelType);
+        
+        this.apiKey.setText(config.apiKey);
+        this.baseUrl.setText(config.baseUrl);
+        this.modelName.setText(config.modelName);
+        this.timeout.setValue(config.timeout);
+        
+        // 设置温度滑块值 (0.0-2.0 映射到 0-20)
+        int tempValue = (int) (config.temperature * 10);
+        this.temperature.setValue(tempValue);
+        this.temperatureValueLabel.setText(String.format("%.1f", config.temperature));
+        
+        // 设置Top-p滑块值 (0.0-1.0 映射到 0-100)
+        int topPValue = (int) (config.topP * 100);
+        this.topP.setValue(topPValue);
+        this.topPValueLabel.setText(String.format("%.2f", config.topP));
+        
+        this.topK.setValue(config.topK);
+        this.maxTokens.setValue(config.maxTokens);
+        this.enableReasoning.setSelected(config.enableReasoning);
+    }
+    
+    /**
+     * 将存储的模型类型映射到显示名称
+     *
+     * @param modelType 存储的模型类型
+     * @return 显示名称
+     * @since y.y.y
+     */
+    private String mapModelTypeToDisplay(String modelType) {
+        if (modelType == null) {
+            return LLMConstants.ModelDisplayName.OPENAI;
+        }
+        return switch (modelType.toLowerCase()) {
+            case LLMConstants.ModelType.OPENAI -> LLMConstants.ModelDisplayName.OPENAI;
+            case LLMConstants.ModelType.OLLAMA -> LLMConstants.ModelDisplayName.OLLAMA;
+            case LLMConstants.ModelType.AZURE -> LLMConstants.ModelDisplayName.AZURE;
+            case LLMConstants.ModelType.GEMINI -> LLMConstants.ModelDisplayName.GEMINI;
+            case LLMConstants.ModelType.CLAUDE -> LLMConstants.ModelDisplayName.CLAUDE;
+            case LLMConstants.ModelType.DEEPSEEK -> LLMConstants.ModelDisplayName.DEEPSEEK;
+            case LLMConstants.ModelType.QWEN -> LLMConstants.ModelDisplayName.QWEN;
+            case LLMConstants.ModelType.GLM -> LLMConstants.ModelDisplayName.GLM;
+            case LLMConstants.ModelType.WENXIN -> LLMConstants.ModelDisplayName.WENXIN;
+            default -> LLMConstants.ModelDisplayName.OPENAI;
+        };
+    }
+    
+    /**
+     * 将显示名称映射到存储的模型类型
+     *
+     * @param displayType 显示名称
+     * @return 存储的模型类型
+     * @since y.y.y
+     */
+    private String mapDisplayToModelType(String displayType) {
+        if (displayType == null) {
+            return LLMConstants.ModelType.OPENAI;
+        }
+        return switch (displayType) {
+            case LLMConstants.ModelDisplayName.OPENAI -> LLMConstants.ModelType.OPENAI;
+            case LLMConstants.ModelDisplayName.OLLAMA -> LLMConstants.ModelType.OLLAMA;
+            case LLMConstants.ModelDisplayName.AZURE -> LLMConstants.ModelType.AZURE;
+            case LLMConstants.ModelDisplayName.GEMINI -> LLMConstants.ModelType.GEMINI;
+            case LLMConstants.ModelDisplayName.CLAUDE -> LLMConstants.ModelType.CLAUDE;
+            case LLMConstants.ModelDisplayName.DEEPSEEK -> LLMConstants.ModelType.DEEPSEEK;
+            case LLMConstants.ModelDisplayName.QWEN -> LLMConstants.ModelType.QWEN;
+            case LLMConstants.ModelDisplayName.GLM -> LLMConstants.ModelType.GLM;
+            case LLMConstants.ModelDisplayName.WENXIN -> LLMConstants.ModelType.WENXIN;
+            default -> LLMConstants.ModelType.OPENAI;
+        };
     }
 
     /**
@@ -156,15 +490,35 @@ public class LLMConfig implements Configurable {
                 LLMConfig.this.isModified = true;
             }
         };
-        this.modelType.addActionListener(e -> this.isModified = true);
+        
+        // 模型类型切换监听器 - 切换时保存当前配置并加载新配置
+        this.modelType.addActionListener(e -> {
+            String selectedType = this.mapDisplayToModelType((String) this.modelType.getSelectedItem());
+            if (!selectedType.equals(this.currentEditingModelType)) {
+                // 保存当前模型的配置
+                this.saveCurrentModelConfig();
+                // 加载新模型的配置
+                this.currentEditingModelType = selectedType;
+                this.loadModelConfig(selectedType);
+                // 更新按钮状态
+                this.updateDefaultButtonState();
+            }
+            this.isModified = true;
+        });
+        
         this.baseUrl.getDocument().addDocumentListener(documentListener);
         this.modelName.getDocument().addDocumentListener(documentListener);
         this.apiKey.getDocument().addDocumentListener(documentListener);
-        this.timeout.getDocument().addDocumentListener(documentListener);
-        this.temperature.getDocument().addDocumentListener(documentListener);
-        this.topP.getDocument().addDocumentListener(documentListener);
-        this.topK.getDocument().addDocumentListener(documentListener);
-        this.maxTokens.getDocument().addDocumentListener(documentListener);
+        
+        // Spinner监听器
+        this.timeout.addChangeListener(e -> this.isModified = true);
+        this.topK.addChangeListener(e -> this.isModified = true);
+        this.maxTokens.addChangeListener(e -> this.isModified = true);
+        
+        // Slider监听器
+        this.temperature.addChangeListener(e -> this.isModified = true);
+        this.topP.addChangeListener(e -> this.isModified = true);
+        
         this.enableReasoning.addActionListener(e -> this.isModified = true);
     }
 
@@ -176,18 +530,7 @@ public class LLMConfig implements Configurable {
      */
     @Override
     public boolean isModified() {
-        DocConfigService config = DocConfigService.getInstance();
-        return this.isModified
-                || !Objects.equals(config.baseUrl, this.baseUrl.getText())
-                || !Objects.equals(config.modelName, this.modelName.getText())
-                || !Objects.equals(config.apiKey, this.apiKey.getText())
-                || !Objects.equals(config.modelType, this.modelType.getSelectedItem())
-                || config.timeout != Integer.parseInt(this.timeout.getText())
-                || config.temperature != Double.parseDouble(this.temperature.getText())
-                || config.topP != Double.parseDouble(this.topP.getText())
-                || config.topK != Integer.parseInt(this.topK.getText())
-                || config.maxTokens != Integer.parseInt(this.maxTokens.getText())
-                || config.enableReasoning != this.enableReasoning.isSelected();
+        return this.isModified;
     }
 
     /**
@@ -200,19 +543,76 @@ public class LLMConfig implements Configurable {
      */
     @Override
     public void apply() {
-        DocConfigService config = DocConfigService.getInstance();
+        // 保存当前编辑的模型配置
+        this.saveCurrentModelConfig();
+        
+        this.isModified = false;
+    }
+    
+    /**
+     * 保存当前正在编辑的模型配置
+     *
+     * @since 1.0.0
+     */
+    private void saveCurrentModelConfig() {
+        LLMConfigState configState = LLMConfigState.getInstance();
+        LLMConfigState.ModelConfig config = new LLMConfigState.ModelConfig();
+        
         config.apiKey = this.apiKey.getText();
         config.baseUrl = this.baseUrl.getText();
         config.modelName = this.modelName.getText();
-        config.modelType = (String) this.modelType.getSelectedItem();
-        config.timeout = Integer.parseInt(this.timeout.getText());
-        config.temperature = Double.parseDouble(this.temperature.getText());
-        config.topP = Double.parseDouble(this.topP.getText());
-        config.topK = Integer.parseInt(this.topK.getText());
-        config.maxTokens = Integer.parseInt(this.maxTokens.getText());
+        config.timeout = (Integer) this.timeout.getValue();
+        
+        // 从滑块获取值
+        config.temperature = this.temperature.getValue() / 10.0;
+        config.topP = this.topP.getValue() / 100.0;
+        
+        config.topK = (Integer) this.topK.getValue();
+        config.maxTokens = (Integer) this.maxTokens.getValue();
         config.enableReasoning = this.enableReasoning.isSelected();
-
-        this.isModified = false;
+        
+        // 保存到当前编辑的模型类型
+        configState.setModelConfig(this.currentEditingModelType, config);
+    }
+    
+    /**
+     * 设置为默认模型
+     *
+     * @since 1.0.0
+     */
+    private void setAsDefaultModel() {
+        LLMConfigState configState = LLMConfigState.getInstance();
+        configState.setDefaultModelType(this.currentEditingModelType);
+        
+        // 更新按钮状态
+        this.updateDefaultButtonState();
+        
+        // 提示用户
+        String displayName = this.mapModelTypeToDisplay(this.currentEditingModelType);
+        Messages.showInfoMessage(
+                "已将 " + displayName + " 设置为默认模型", 
+                "设置成功"
+        );
+        
+        this.isModified = true;
+    }
+    
+    /**
+     * 更新默认按钮状态
+     *
+     * @since 1.0.0
+     */
+    private void updateDefaultButtonState() {
+        LLMConfigState configState = LLMConfigState.getInstance();
+        boolean isDefault = this.currentEditingModelType.equals(configState.defaultModelType);
+        
+        if (isDefault) {
+            this.setDefaultButton.setText("当前为默认模型");
+            this.setDefaultButton.setEnabled(false);
+        } else {
+            this.setDefaultButton.setText("设置为默认模型");
+            this.setDefaultButton.setEnabled(true);
+        }
     }
 
     /**
@@ -225,98 +625,7 @@ public class LLMConfig implements Configurable {
      */
     @Override
     public void reset() {
-        DocConfigService config = DocConfigService.getInstance();
-        this.apiKey.setText(config.apiKey);
-        this.baseUrl.setText(config.baseUrl);
-        this.modelName.setText(config.modelName);
-        this.modelType.setSelectedItem(config.modelType);
-        this.timeout.setText(String.valueOf(config.timeout));
-        this.temperature.setText(String.valueOf(config.temperature));
-        this.topP.setText(String.valueOf(config.topP));
-        this.topK.setText(String.valueOf(config.topK));
-        this.maxTokens.setText(String.valueOf(config.maxTokens));
-        this.enableReasoning.setSelected(config.enableReasoning);
+        this.loadConfigData();
         this.isModified = false;
     }
-
-    {
-// GUI initializer generated by IntelliJ IDEA GUI Designer
-// >>> IMPORTANT!! <<<
-// DO NOT EDIT OR ADD ANY CODE HERE!
-        this.$$$setupUI$$$();
-    }
-
-    /**
-     * Method generated by IntelliJ IDEA GUI Designer
-     * >>> IMPORTANT!! <<<
-     * DO NOT edit this method OR call it in your code!
-     *
-     * @noinspection ALL
-     */
-    private void $$$setupUI$$$() {
-        mainPanel = new JPanel();
-        mainPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        aiContent = new JPanel();
-        aiContent.setLayout(new GridLayoutManager(10, 3, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(aiContent, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        aiContent.setBorder(BorderFactory.createTitledBorder(null, "AI配置", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        modelTypeTitle = new JLabel();
-        modelTypeTitle.setText("模型类型");
-        aiContent.add(modelTypeTitle, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        modelType = new JComboBox();
-        final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
-        defaultComboBoxModel1.addElement("openai");
-        defaultComboBoxModel1.addElement("ollama");
-        modelType.setModel(defaultComboBoxModel1);
-        aiContent.add(modelType, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        baseUrlTitle = new JLabel();
-        baseUrlTitle.setText("模型地址");
-        aiContent.add(baseUrlTitle, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        baseUrl = new JTextField();
-        aiContent.add(baseUrl, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(300, -1), null, 0, false));
-        modelNameTitle = new JLabel();
-        modelNameTitle.setText("模型名称");
-        aiContent.add(modelNameTitle, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        modelName = new JTextField();
-        aiContent.add(modelName, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        apiKeyTitle = new JLabel();
-        apiKeyTitle.setText("API Key");
-        aiContent.add(apiKeyTitle, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        apiKey = new JTextField();
-        aiContent.add(apiKey, new GridConstraints(3, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        timeoutTitle = new JLabel();
-        timeoutTitle.setText("超时时间(毫秒)");
-        aiContent.add(timeoutTitle, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        timeout = new JTextField();
-        aiContent.add(timeout, new GridConstraints(4, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        temperatureTitle = new JLabel();
-        temperatureTitle.setText("温度参数");
-        aiContent.add(temperatureTitle, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        temperature = new JTextField();
-        aiContent.add(temperature, new GridConstraints(5, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        topPTitle = new JLabel();
-        topPTitle.setText("Top-p参数");
-        aiContent.add(topPTitle, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        topP = new JTextField();
-        aiContent.add(topP, new GridConstraints(6, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        topKTitle = new JLabel();
-        topKTitle.setText("Top-k参数");
-        aiContent.add(topKTitle, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        topK = new JTextField();
-        aiContent.add(topK, new GridConstraints(7, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        maxTokensTitle = new JLabel();
-        maxTokensTitle.setText("最大令牌数");
-        aiContent.add(maxTokensTitle, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        maxTokens = new JTextField();
-        aiContent.add(maxTokens, new GridConstraints(8, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        enableReasoning = new JCheckBox();
-        enableReasoning.setText("开启思考模式");
-        aiContent.add(enableReasoning, new GridConstraints(9, 0, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-    }
-
-    /** @noinspection ALL */
-    public JComponent $$$getRootComponent$$$() {
-        return mainPanel;
-    }
-
 }

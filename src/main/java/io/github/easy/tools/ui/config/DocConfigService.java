@@ -7,6 +7,8 @@ import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
+import io.github.easy.tools.constants.PromptConstants;
+import io.github.easy.tools.utils.TemplateUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;
@@ -130,7 +132,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
              * @param $param.originalName $param.splitName
              #end
              #if( $returnType && $returnType != "" )
-             * @return the $returnType.splitName
+             * @return $returnType.splitName
              #end
              #foreach( $exception in $exceptions )
              * @throws $exception
@@ -142,7 +144,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     /** 字段注释模板默认值 */
     public static final String DEFAULT_FIELD_TEMPLATE = """
             /**
-             * ${fieldName}
+             * ${util.camelToWords($fieldName)} field of type ${fieldType}.
              */
             """;
 
@@ -181,6 +183,21 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
      */
     public boolean nonStandardDoc = true;
 
+    /**
+     * AI类注释生成提示词模板
+     */
+    public String classPrompt = PromptConstants.DEFAULT_CLASS_PROMPT;
+
+    /**
+     * AI方法注释生成提示词模板
+     */
+    public String methodPrompt = PromptConstants.DEFAULT_METHOD_PROMPT;
+
+    /**
+     * AI字段注释生成提示词模板
+     */
+    public String fieldPrompt = PromptConstants.DEFAULT_FIELD_PROMPT;
+
 
     /**
      * 获取基础参数列表
@@ -197,7 +214,8 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
         parameters.put(PARAM_DATE, DateUtil.now());
         parameters.put(PARAM_VERSION, "1.0.0");
         parameters.put(PARAM_SINCE, "1.0.0");
-        parameters.put(PARAM_STR, StrUtil.class.getName());
+        // Expose template utilities for Velocity usage
+        parameters.put("util", new TemplateUtils());
         return parameters;
     }
 
