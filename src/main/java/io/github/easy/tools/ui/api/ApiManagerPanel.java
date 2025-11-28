@@ -3,6 +3,7 @@ package io.github.easy.tools.ui.api;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.treeStructure.Tree;
 import io.github.easy.tools.entity.api.ApiInfo;
 import io.github.easy.tools.service.api.SpringMvcApiScanner;
@@ -11,7 +12,8 @@ import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SwingWorker;
@@ -19,7 +21,9 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.FlowLayout;
+import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -32,7 +36,7 @@ import java.util.Map;
 /**
  * API管理面板
  * 用于展示和管理项目中的API接口信息，提供树形结构视图和搜索功能
- * 
+ *
  * <p>主要功能包括：</p>
  * <ul>
  *   <li>以树形结构展示项目中的所有API接口，按Controller分组</li>
@@ -41,13 +45,13 @@ import java.util.Map;
  *   <li>支持实时刷新API列表</li>
  *   <li>为不同HTTP方法类型提供颜色区分显示</li>
  * </ul>
- * 
+ *
  * <p>UI组件说明：</p>
  * <ul>
  *   <li>工具栏：包含刷新按钮和搜索框</li>
  *   <li>API树：以树形结构展示API接口，根节点为Controller类，子节点为API方法</li>
  * </ul>
- * 
+ *
  * @author iamxiaohaijun
  * @version 1.0.0
  * @email "mailto:iamxiaohaijun@gmail.com"
@@ -72,10 +76,24 @@ public class ApiManagerPanel extends JPanel {
     /** 过滤后的API接口列表，根据搜索条件筛选后的结果 */
     private List<ApiInfo> filteredApiList;
 
+    // 测试相关UI与状态
+    private ApiInfo selectedApi;
+    private JPanel testPanel;
+    private JLabel methodLabel;
+    private JLabel urlLabel;
+    private JTextArea headersArea;
+    private JTextArea bodyArea;
+    private JTextArea responseArea;
+    private JButton testButton;
+    private JButton configButton;
+
+    // API测试服务
+    private final io.github.easy.tools.service.api.ApiTestService apiTestService = new io.github.easy.tools.service.api.ApiTestService();
+
     /**
      * 自定义树节点类，用于存储API信息并支持自定义显示文本
      * 该类扩展了DefaultMutableTreeNode，添加了对API信息的存储和HTML格式化显示的支持
-     * 
+     *
      * <p>显示特性：</p>
      * <ul>
      *   <li>Controller节点：使用蓝色粗体显示</li>
@@ -122,7 +140,7 @@ public class ApiManagerPanel extends JPanel {
         /**
          * 获取节点显示文本
          * 返回格式化的HTML显示文本，根据不同类型的节点应用不同的颜色样式
-         * 
+         *
          * <p>颜色规则：</p>
          * <ul>
          *   <li>Controller节点（无方法类型）：蓝色粗体</li>
@@ -142,12 +160,12 @@ public class ApiManagerPanel extends JPanel {
                 // Controller节点
                 if (this.apiInfo.getMethod() == null || this.apiInfo.getMethod().isEmpty()) {
                     return "<html><span style='color: #4A90E2; font-weight: bold;'>" + this.displayText + "</span></html>";
-                } 
+                }
                 // API方法节点
                 else {
                     String method = this.apiInfo.getMethod();
                     String color = "#FF6B6B"; // 默认红色
-                    
+
                     switch (method.toUpperCase()) {
                         case "GET":
                             color = "#4ECDC4"; // 青色
@@ -162,7 +180,7 @@ public class ApiManagerPanel extends JPanel {
                             color = "#FF6B6B"; // 红色
                             break;
                     }
-                    
+
                     return "<html><span style='color: " + color + ";'>" + this.displayText + "</span></html>";
                 }
             }
@@ -204,6 +222,10 @@ public class ApiManagerPanel extends JPanel {
         toolbarPanel.add(Box.createHorizontalStrut(10));
         toolbarPanel.add(searchLabel);
         toolbarPanel.add(this.searchField);
+        toolbarPanel.add(Box.createHorizontalStrut(10));
+        this.configButton = new JButton("测试配置");
+        this.configButton.addActionListener(e -> new ApiTestConfigDialog(ApiManagerPanel.this.project).show());
+        toolbarPanel.add(this.configButton);
 
         this.add(toolbarPanel, BorderLayout.NORTH);
 
@@ -216,7 +238,7 @@ public class ApiManagerPanel extends JPanel {
         // 启用HTML渲染
         this.apiTree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
             @Override
-            public java.awt.Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
                 super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
                 // 启用HTML渲染
                 this.putClientProperty("html.disable", null);
@@ -243,14 +265,70 @@ public class ApiManagerPanel extends JPanel {
         });
 
         // 添加滚动面板
-        JScrollPane scrollPane = new JScrollPane(this.apiTree);
-        this.add(scrollPane, BorderLayout.CENTER);
+        JBScrollPane leftScroll = new JBScrollPane(this.apiTree);
+        // 构建右侧测试面板
+        this.testPanel = new JPanel(new BorderLayout());
+        JPanel infoPanel = new JPanel(new GridBagLayout());
+        java.awt.GridBagConstraints gbc = new java.awt.GridBagConstraints();
+        gbc.insets = new java.awt.Insets(3, 5, 3, 5);
+        gbc.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        int row = 0;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; infoPanel.add(new JLabel("方法:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; this.methodLabel = new JLabel(""); infoPanel.add(this.methodLabel, gbc); row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; infoPanel.add(new JLabel("完整URL:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; this.urlLabel = new JLabel(""); infoPanel.add(this.urlLabel, gbc); row++;
+        this.testPanel.add(infoPanel, BorderLayout.NORTH);
+        JPanel editPanel = new JPanel(new BorderLayout());
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.add(new JLabel("请求头(每行: 名称:值):"), BorderLayout.NORTH);
+        this.headersArea = new JTextArea(6, 40);
+        headerPanel.add(new JBScrollPane(this.headersArea), BorderLayout.CENTER);
+        JPanel bodyPanel = new JPanel(new BorderLayout());
+        bodyPanel.add(new JLabel("请求体(JSON):"), BorderLayout.NORTH);
+        this.bodyArea = new JTextArea(8, 40);
+        bodyPanel.add(new JBScrollPane(this.bodyArea), BorderLayout.CENTER);
+        editPanel.add(headerPanel, BorderLayout.NORTH);
+        editPanel.add(bodyPanel, BorderLayout.CENTER);
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        this.testButton = new JButton("执行测试");
+        this.testButton.addActionListener(e -> this.doApiTest());
+        actionPanel.add(this.testButton);
+        editPanel.add(actionPanel, BorderLayout.SOUTH);
+        this.testPanel.add(editPanel, BorderLayout.CENTER);
+        JPanel respPanel = new JPanel(new BorderLayout());
+        respPanel.add(new JLabel("响应结果:"), BorderLayout.NORTH);
+        this.responseArea = new JTextArea(12, 40);
+        this.responseArea.setEditable(false);
+        respPanel.add(new JBScrollPane(this.responseArea), BorderLayout.CENTER);
+        this.testPanel.add(respPanel, BorderLayout.SOUTH);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftScroll, this.testPanel);
+        splitPane.setDividerLocation(350);
+        this.add(splitPane, BorderLayout.CENTER);
+
+        // 选择变更时更新右侧
+        this.apiTree.addTreeSelectionListener(e -> {
+            TreePath path = ApiManagerPanel.this.apiTree.getSelectionPath();
+            if (path != null && path.getLastPathComponent() instanceof ApiTreeNode) {
+                ApiTreeNode node = (ApiTreeNode) path.getLastPathComponent();
+                ApiManagerPanel.this.selectedApi = node.getApiInfo();
+                ApiManagerPanel.this.methodLabel.setText(ApiManagerPanel.this.selectedApi.getMethod());
+                String base = io.github.easy.tools.ui.config.ApiTestConfigState.getInstance(ApiManagerPanel.this.project).baseUrl;
+                String apiPath = ApiManagerPanel.this.selectedApi.getUrl();
+                if (base == null || base.isEmpty() || apiPath == null) {
+                    ApiManagerPanel.this.urlLabel.setText(apiPath);
+                } else {
+                    String b = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+                    String p = apiPath.startsWith("/") ? apiPath : "/" + apiPath;
+                    ApiManagerPanel.this.urlLabel.setText(b + p);
+                }
+            }
+        });
     }
 
     /**
      * 刷新API列表
      * 扫描项目中的所有API接口并更新树形结构
-     * 
+     *
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>检查IDE是否处于dumb模式，如果是则等待索引完成</li>
@@ -259,7 +337,7 @@ public class ApiManagerPanel extends JPanel {
      *   <li>使用SwingWorker在后台线程执行扫描，避免阻塞UI</li>
      *   <li>逐步更新UI显示扫描结果</li>
      * </ol>
-     * 
+     *
      * <p>注意事项：</p>
      * <ul>
      *   <li>使用SwingWorker确保后台扫描不会阻塞UI线程</li>
@@ -278,7 +356,7 @@ public class ApiManagerPanel extends JPanel {
             DumbService.getInstance(this.project).runWhenSmart(this::refreshApiList);
             return;
         }
-        
+
         // 清空现有数据
         this.apiList.clear();
         this.filteredApiList.clear();
@@ -358,7 +436,7 @@ public class ApiManagerPanel extends JPanel {
     /**
      * 更新树形结构
      * 根据当前的API列表构建树形结构，按Controller对API接口进行分组显示
-     * 
+     *
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>清空现有树结构</li>
@@ -367,7 +445,7 @@ public class ApiManagerPanel extends JPanel {
      *   <li>为每个API接口创建子节点</li>
      *   <li>重新加载树模型</li>
      * </ol>
-     * 
+     *
      * <p>分组规则：</p>
      * <ul>
      *   <li>优先使用Controller描述（来自Swagger/OpenAPI注解）</li>
@@ -420,7 +498,7 @@ public class ApiManagerPanel extends JPanel {
     /**
      * 过滤API列表
      * 根据关键字过滤API列表并更新树形结构
-     * 
+     *
      * <p>过滤规则：</p>
      * <ul>
      *   <li>支持按API名称过滤</li>
@@ -429,7 +507,7 @@ public class ApiManagerPanel extends JPanel {
      *   <li>支持按Controller描述过滤</li>
      *   <li>支持按类名过滤</li>
      * </ul>
-     * 
+     *
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>如果关键字为空，则显示所有API</li>
@@ -464,14 +542,14 @@ public class ApiManagerPanel extends JPanel {
     /**
      * 跳转到指定的API方法
      * 根据API信息打开对应的Java文件并定位到方法位置
-     * 
+     *
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>根据API信息中的虚拟文件路径查找VirtualFile对象</li>
      *   <li>使用FileEditorManager打开文件</li>
      *   <li>使用OpenFileDescriptor定位到方法的具体位置</li>
      * </ol>
-     * 
+     *
      * <p>注意事项：</p>
      * <ul>
      *   <li>只有在API信息包含有效虚拟文件路径时才执行跳转</li>
@@ -508,7 +586,7 @@ public class ApiManagerPanel extends JPanel {
     /**
      * 刷新按钮事件监听器
      * 处理刷新按钮的点击事件，触发API列表的重新扫描和显示
-     * 
+     *
      * <p>功能说明：</p>
      * <ul>
      *   <li>当用户点击刷新按钮时，调用[refreshApiList()](file:///Users/haijun/Work/work/idea-tools/src/main/java/io/github/easy/tools/ui/api/ApiManagerPanel.java#L214-L282)方法重新扫描API</li>
@@ -539,7 +617,7 @@ public class ApiManagerPanel extends JPanel {
     /**
      * 搜索框事件监听器
      * 处理搜索框的回车键事件，触发API列表的过滤显示
-     * 
+     *
      * <p>功能说明：</p>
      * <ul>
      *   <li>当用户在搜索框中按下回车键时，根据输入的关键字过滤API列表</li>
@@ -565,6 +643,37 @@ public class ApiManagerPanel extends JPanel {
         @Override
         public void actionPerformed(ActionEvent e) {
             ApiManagerPanel.this.filterApiList(ApiManagerPanel.this.searchField.getText());
+        }
+    }
+
+    /**
+     * 执行所选API的测试请求
+     */
+    private void doApiTest() {
+        if (this.selectedApi == null) {
+            if (this.responseArea != null) {
+                this.responseArea.setText("请在左侧选择一个API方法");
+            }
+            return;
+        }
+        java.util.Map<String, String> hdrs = new java.util.HashMap<>();
+        String text = this.headersArea != null ? this.headersArea.getText() : null;
+        if (text != null && !text.trim().isEmpty()) {
+            for (String line : text.split("\n")) {
+                String l = line.trim();
+                if (l.isEmpty()) {
+                    continue;
+                }
+                int idx = l.indexOf(":");
+                if (idx > 0) {
+                    hdrs.put(l.substring(0, idx).trim(), l.substring(idx + 1).trim());
+                }
+            }
+        }
+        String body = this.bodyArea != null ? this.bodyArea.getText() : null;
+        String resp = this.apiTestService.execute(this.project, this.selectedApi, hdrs, body);
+        if (this.responseArea != null) {
+            this.responseArea.setText(resp);
         }
     }
 }

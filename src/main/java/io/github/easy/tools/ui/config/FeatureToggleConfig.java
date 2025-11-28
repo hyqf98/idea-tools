@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import com.intellij.ui.components.JBScrollPane;
 import java.awt.*;
 
 /**
@@ -143,7 +144,7 @@ public class FeatureToggleConfig implements Configurable {
         warningLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         contentPanel.add(warningLabel);
         
-        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        JBScrollPane scrollPane = new JBScrollPane(contentPanel);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         

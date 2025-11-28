@@ -817,14 +817,15 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
             // 首先添加泛型类型参数
             for (PsiTypeParameter typeParameter : element.getTypeParameters()) {
-                String paramName = "<" + typeParameter.getName() + ">";
+                String typeName = typeParameter.getName();
+                String paramName = "<" + typeName + ">";
                 ParameterInfo param = ParameterInfo.builder()
                         .originalName(paramName)
                         .shortName(paramName)
-                        .simpleTypeName("parameter")
-                        .qualifiedTypeName("parameter")
-                        .lowerFirstName(StrUtil.lowerFirst(paramName))
-                        .splitName(StrUtil.toUnderlineCase(paramName).replace("_", " "))
+                        .simpleTypeName("type-parameter")
+                        .qualifiedTypeName("type-parameter")
+                        .lowerFirstName(StrUtil.lowerFirst(typeName))
+                        .splitName("类型参数 " + typeName)
                         .build();
                 parameters.add(param);
             }

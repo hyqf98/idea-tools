@@ -51,18 +51,18 @@ public class AICommentProcessor {
      */
     public String getPromptByType(PsiElement element) {
         DocConfigService config = DocConfigService.getInstance();
-        
+
         if (element instanceof PsiClass) {
-            return StrUtil.isNotBlank(config.classPrompt) 
-                    ? config.classPrompt 
+            return StrUtil.isNotBlank(config.classPrompt)
+                    ? config.classPrompt
                     : PromptConstants.DEFAULT_CLASS_PROMPT;
         } else if (element instanceof PsiMethod) {
-            return StrUtil.isNotBlank(config.methodPrompt) 
-                    ? config.methodPrompt 
+            return StrUtil.isNotBlank(config.methodPrompt)
+                    ? config.methodPrompt
                     : PromptConstants.DEFAULT_METHOD_PROMPT;
         } else if (element instanceof PsiField) {
-            return StrUtil.isNotBlank(config.fieldPrompt) 
-                    ? config.fieldPrompt 
+            return StrUtil.isNotBlank(config.fieldPrompt)
+                    ? config.fieldPrompt
                     : PromptConstants.DEFAULT_FIELD_PROMPT;
         }
         return "";
@@ -86,7 +86,8 @@ public class AICommentProcessor {
             WriteCommandAction.runWriteCommandAction(project, () -> {
                 // 创建新的文档注释
                 PsiElementFactory elementFactory = JavaPsiFacade.getElementFactory(project);
-                PsiElement docCommentFromText = elementFactory.createDocCommentFromText(commentText);
+                String sanitized = this.sanitizeGenerics(commentText);
+                PsiElement docCommentFromText = elementFactory.createDocCommentFromText(sanitized);
 
                 // 获取现有的文档注释
                 PsiDocComment existingDocComment = null;
@@ -273,11 +274,45 @@ public class AICommentProcessor {
      * @return JavaDoc格式注释
      * @since 1.0.0
      */
+    /**
+     * 规范化JavaDoc中泛型与尖括号的显示，避免IDE将其识别为HTML标签
+     * 处理策略：
+     * - 在非标签行（非以"* @"开头）中，将形如 List<A> / Map<K,V> / Foo<Bar> 包裹为 {@code ...}
+     * - 在残留的裸尖括号（如 <T>、<E extends X>）且非标准HTML标签时，包裹为 {@literal <...>}
+     * - 保留合法JavaDoc/HTML标签（如 <p>、<code>、<pre> 等）不改动
+     */
     private String wrapAsJavaDoc(String content) {
         return """
                 /**
                  * %s
                  */
                 """.formatted(content.replace("\n", "\n * "));
+    }
+
+    private String sanitizeGenerics(String commentText) {
+        if (StrUtil.isBlank(commentText)) {
+            return commentText;
+        }
+        String[] lines = commentText.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.trim();
+            // 标签行保持原样（例如 * @param）
+            if (trimmed.startsWith("* @") || trimmed.startsWith("*@")) {
+                out.append(line).append("\n");
+                continue;
+            }
+            String processed = line;
+            // 1) 包裹通用泛型表达式 token<...>
+            processed = processed.replaceAll("([A-Za-z0-9_.$]+<[^>]+>)", "{@code $1}");
+            // 2) 对非标准HTML尖括号进行{@literal}处理（排除常见标签）
+            processed = processed.replaceAll("<(?!/?(?:p|code|pre|br|li|ul|ol|i|b|em|strong|a)\b)([^>]+)>", "{@literal <$1>}");
+            out.append(processed).append("\n");
+        }
+        // 移除最后一个多余的换行，保持原始格式
+        if (out.length() > 0) {
+            out.setLength(out.length() - 1);
+        }
+        return out.toString();
     }
 }
