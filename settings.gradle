@@ -1,7 +1,19 @@
 pluginManagement {
     repositories {
+        // 优先使用本地Maven仓库
+        mavenLocal()
+        
+        // Maven中央仓库
         mavenCentral()
+        
+        // 国内镜像源（阿里云）
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        
+        // Gradle插件门户
         gradlePluginPortal()
+    }
+    plugins {
+        id 'org.jetbrains.intellij.platform' version providers.gradleProperty('gradle.intellij.plugin.version').get()
     }
 }
 

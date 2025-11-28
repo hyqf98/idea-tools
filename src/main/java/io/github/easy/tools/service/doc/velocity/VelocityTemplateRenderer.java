@@ -5,7 +5,6 @@ import io.github.easy.tools.service.doc.TemplateRenderer;
 import org.apache.velocity.Template;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.context.Context;
-import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 import org.apache.velocity.util.introspection.SecureUberspector;
 
@@ -20,12 +19,12 @@ import java.util.Properties;
  * </p>
  */
 public class VelocityTemplateRenderer implements TemplateRenderer {
-    
+
     /**
      * Velocity引擎实例，用于模板渲染
      */
     private final VelocityEngine velocityEngine;
-    
+
     /**
      * 构造函数，初始化Velocity引擎
      * <p>
@@ -49,7 +48,7 @@ public class VelocityTemplateRenderer implements TemplateRenderer {
         this.velocityEngine = new VelocityEngine();
         this.velocityEngine.init(properties);
     }
-    
+
     /**
      * 使用Velocity引擎渲染模板内容
      *
@@ -69,7 +68,7 @@ public class VelocityTemplateRenderer implements TemplateRenderer {
             throw new RuntimeException("模板渲染失败: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 渲染模板文件
      * <p>

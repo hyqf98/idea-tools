@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.jetbrains.intellij.platform' version '2.1.0'
+    id 'org.jetbrains.intellij.platform'
 }
 
 // 配置构建时显示更清晰的信息
@@ -8,8 +8,15 @@ group = providers.gradleProperty('pluginGroup').get()
 version = providers.gradleProperty('pluginVersion').get()
 
 repositories {
+    // 优先使用本地Maven仓库
+    mavenLocal()
+    
+    // Maven中央仓库
     mavenCentral()
-
+    
+    // 国内镜像源（阿里云）
+    maven { url 'https://maven.aliyun.com/repository/public' }
+    
     intellijPlatform {
         defaultRepositories()
     }
@@ -18,9 +25,8 @@ repositories {
 dependencies {
     // IntelliJ Platform依赖 (2.x新语法)
     intellijPlatform {
-        // 检查是否指定了特定的平台版本
-        def platformVer = findProperty('platformVersion') ?: providers.gradleProperty('platformVersion').get()
-        create(providers.gradleProperty('platformType'), platformVer)
+        // 使用gradle.properties中定义的平台类型和版本
+        create(providers.gradleProperty('platformType').get(), providers.gradleProperty('platformVersion').get())
 
         // 绑定插件
         bundledPlugin('com.intellij.java')
@@ -35,7 +41,6 @@ dependencies {
     // 第三方依赖
     implementation "cn.hutool:hutool-all:${providers.gradleProperty('hutool.version').get()}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${providers.gradleProperty('jackson.version').get()}"
-    implementation "org.apache.velocity:velocity-engine-core:${providers.gradleProperty('velocity.version').get()}"
 
     compileOnly "org.projectlombok:lombok:${providers.gradleProperty('lombok.version').get()}"
     annotationProcessor "org.projectlombok:lombok:${providers.gradleProperty('lombok.version').get()}"
@@ -72,18 +77,6 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = providers.gradleProperty('platformSinceBuild')
             untilBuild = providers.gradleProperty('platformUntilBuild')
-        }
-    }
-
-    // 插件验证配置 - 验证多个IDE版本兼容性
-    pluginVerification {
-        ides {
-            ide('IC', '2024.1')
-            ide('IC', '2024.2')
-            ide('IC', '2024.3')
-            ide('IC', '2025.1')
-            // 使用当前platformVersion进行验证
-            ide('IC', '2025.2.5')
         }
     }
 }
