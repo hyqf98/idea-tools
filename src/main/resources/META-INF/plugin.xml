@@ -202,6 +202,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.DocConfigService"/>
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.LLMConfigState"/>
+        <applicationService serviceImplementation="io.github.easy.tools.ui.config.CodeGenConfigState"/>
         <applicationService serviceImplementation="io.github.easy.tools.ui.config.FeatureToggleService"/>
         <applicationService serviceImplementation="io.github.easy.tools.service.llm.LLMService"/>
         <applicationConfigurable
@@ -212,6 +213,7 @@
             <configurable instance="io.github.easy.tools.ui.config.FeatureToggleConfig" id="io.github.easy.tools.ui.config.FeatureToggleConfig" displayName="Feature Toggle"/>
             <configurable instance="io.github.easy.tools.ui.config.DocConfig" id="io.github.easy.tools.ui.config.BaseTemplateConfig" displayName="Java Doc Config"/>
             <configurable instance="io.github.easy.tools.ui.config.LLMConfig" id="io.github.easy.tools.ui.config.LLMConfig" displayName="LLM Config"/>
+            <configurable instance="io.github.easy.tools.ui.config.CodeGenConfig" id="io.github.easy.tools.ui.config.CodeGenConfig" displayName="AI 代码生成配置"/>
         </applicationConfigurable>
         <applicationService serviceImplementation="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"/>
         <defaultTemplatePropertiesProvider implementation="io.github.easy.tools.service.doc.DefaultTemplatePropertiesProvider"/>
@@ -279,6 +281,15 @@
                 text="API搜索"
                 description="搜索并跳转到API接口">
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl BACK_SLASH"/>
+        </action>
+
+        <!-- AI代码生成动作 -->
+        <action id="GenerateCodeByAiAction"
+                class="io.github.easy.tools.action.codegen.GenerateCodeByAiAction"
+                text="AI代码生成"
+                description="使用AI根据数据库表结构生成代码">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift G"/>
         </action>
     </actions>
 </idea-plugin>

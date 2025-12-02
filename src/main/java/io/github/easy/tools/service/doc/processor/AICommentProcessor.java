@@ -310,7 +310,7 @@ public class AICommentProcessor {
             out.append(processed).append("\n");
         }
         // 移除最后一个多余的换行，保持原始格式
-        if (out.length() > 0) {
+        if (!out.isEmpty()) {
             out.setLength(out.length() - 1);
         }
         return out.toString();

@@ -2,15 +2,14 @@ package io.github.easy.tools.ui.config;
 
 import cn.hutool.core.util.StrUtil;
 import com.intellij.openapi.options.Configurable;
-import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBCheckBox;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
-import com.intellij.util.ui.UIUtil;
 import io.github.easy.tools.action.doc.listener.FileSaveListenerManager;
 import io.github.easy.tools.entity.doc.Desc;
 import io.github.easy.tools.entity.doc.ParameterInfo;
+import io.github.easy.tools.ui.config.DocConfigService.CustomParam;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
@@ -31,14 +30,12 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -198,7 +195,7 @@ public class DocConfig implements Configurable {
 
         this.initEventListeners();
         this.loadConfigData();
-        
+
         return this.mainPanel;
     }
 
@@ -231,7 +228,7 @@ public class DocConfig implements Configurable {
      * @since 1.0.0
      */
     private boolean isCustomVarsModified(DocConfigService config) {
-        List<Map<String, Object>> tableData = this.getCustomVarsFromTable();
+        List<CustomParam> tableData = this.getCustomVarsFromTable();
         return !Objects.equals(tableData, config.customParameters);
     }
 
@@ -253,14 +250,14 @@ public class DocConfig implements Configurable {
         config.fieldPrompt = this.fieldPrompt.getText();
 
         config.nonStandardDoc = this.nonStandardDoc.isSelected();
-        
+
         // 从表格获取自定义变量
         config.customParameters.clear();
         config.customParameters.addAll(this.getCustomVarsFromTable());
-        
+
         // 重新生成customVar字符串用于兼容
         config.customVar = this.buildCustomVarString(config.customParameters);
-        
+
         config.saveListener = this.saveListener.isSelected();
         // 更新监听器状态
         FileSaveListenerManager.getInstance().updateListenerState();
@@ -275,18 +272,18 @@ public class DocConfig implements Configurable {
      * @return 自定义变量列表
      * @since 1.0.0
      */
-    private List<Map<String, Object>> getCustomVarsFromTable() {
-        List<Map<String, Object>> customVars = new ArrayList<>();
+    private List<CustomParam> getCustomVarsFromTable() {
+        List<CustomParam> customVars = new ArrayList<>();
         for (int i = 0; i < this.customVarTableModel.getRowCount(); i++) {
             String name = (String) this.customVarTableModel.getValueAt(i, 0);
             String desc = (String) this.customVarTableModel.getValueAt(i, 1);
             String value = (String) this.customVarTableModel.getValueAt(i, 2);
-            
+
             if (StrUtil.isNotBlank(name)) {
-                Map<String, Object> param = new LinkedHashMap<>();
-                param.put("name", name.trim());
-                param.put("description", StrUtil.blankToDefault(desc, name).trim());
-                param.put("value", StrUtil.blankToDefault(value, "").trim());
+                CustomParam param = new CustomParam();
+                param.setName(name.trim());
+                param.setDescription(StrUtil.blankToDefault(desc, name).trim());
+                param.setValue(StrUtil.blankToDefault(value, "").trim());
                 customVars.add(param);
             }
         }
@@ -300,14 +297,14 @@ public class DocConfig implements Configurable {
      * @return 自定义变量字符串
      * @since 1.0.0
      */
-    private String buildCustomVarString(List<Map<String, Object>> customParams) {
+    private String buildCustomVarString(List<CustomParam> customParams) {
         return customParams.stream()
                 .map(param -> {
-                    String name = (String) param.get("name");
-                    String desc = (String) param.get("description");
-                    String value = (String) param.get("value");
-                    
-                    if (StrUtil.isNotBlank(desc) && !desc.equals(name)) {
+                    String name = param.getName();
+                    String desc = param.getDescription();
+                    String value = param.getValue();
+
+                    if (StrUtil.isNotBlank(desc) && !Objects.equals(desc, name)) {
                         return String.format("%s(%s)=%s", name, desc, value);
                     }
                     return String.format("%s=%s", name, value);
@@ -336,36 +333,36 @@ public class DocConfig implements Configurable {
     private JPanel createTemplatesPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder("模板配置"));
-        
+
         // 创建模板类型切换面板
         JPanel switchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         this.velocityRadio = new JRadioButton("Velocity模板", true);
         this.aiPromptRadio = new JRadioButton("AI提示词模板");
-        
+
         ButtonGroup group = new ButtonGroup();
         group.add(this.velocityRadio);
         group.add(this.aiPromptRadio);
-        
+
         switchPanel.add(this.velocityRadio);
         switchPanel.add(this.aiPromptRadio);
         panel.add(switchPanel, BorderLayout.NORTH);
-        
+
         // 创建卡片布局面板
         this.templateCardLayout = new CardLayout();
         this.templateCardPanel = new JPanel(this.templateCardLayout);
-        
+
         // 添加Velocity模板面板
         this.templateCardPanel.add(this.createVelocityTemplatesPanel(), "VELOCITY");
-        
+
         // 添加AI提示词面板
         this.templateCardPanel.add(this.createAIPromptsPanel(), "AI_PROMPT");
-        
+
         panel.add(this.templateCardPanel, BorderLayout.CENTER);
-        
+
         // 添加切换监听器
         this.velocityRadio.addActionListener(e -> this.templateCardLayout.show(this.templateCardPanel, "VELOCITY"));
         this.aiPromptRadio.addActionListener(e -> this.templateCardLayout.show(this.templateCardPanel, "AI_PROMPT"));
-        
+
         return panel;
     }
 
@@ -377,12 +374,12 @@ public class DocConfig implements Configurable {
      */
     private JPanel createVelocityTemplatesPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.BOTH;
         gbc.insets = JBUI.insets(5);
         gbc.weightx = 1.0;
-        
+
         // 类模板
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -390,21 +387,21 @@ public class DocConfig implements Configurable {
         JPanel classPanel = this.createTemplateSection("类模板", 150);
         this.classTemplate = (JTextArea) ((JBScrollPane) classPanel.getComponent(0)).getViewport().getView();
         panel.add(classPanel, gbc);
-        
+
         // 方法模板
         gbc.gridy = 1;
         gbc.weighty = 0.3;
         JPanel methodPanel = this.createTemplateSection("方法模板", 200);
         this.methodTemplate = (JTextArea) ((JBScrollPane) methodPanel.getComponent(0)).getViewport().getView();
         panel.add(methodPanel, gbc);
-        
+
         // 字段模板
         gbc.gridy = 2;
         gbc.weighty = 0.15;
         JPanel fieldPanel = this.createTemplateSection("字段模板", 100);
         this.fieldTemplate = (JTextArea) ((JBScrollPane) fieldPanel.getComponent(0)).getViewport().getView();
         panel.add(fieldPanel, gbc);
-        
+
         return panel;
     }
 
@@ -416,12 +413,12 @@ public class DocConfig implements Configurable {
      */
     private JPanel createAIPromptsPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.BOTH;
         gbc.insets = JBUI.insets(5);
         gbc.weightx = 1.0;
-        
+
         // 类注释提示词
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -429,21 +426,21 @@ public class DocConfig implements Configurable {
         JPanel classPromptPanel = this.createTemplateSection("类注释提示词", 150);
         this.classPrompt = (JTextArea) ((JBScrollPane) classPromptPanel.getComponent(0)).getViewport().getView();
         panel.add(classPromptPanel, gbc);
-        
+
         // 方法注释提示词
         gbc.gridy = 1;
         gbc.weighty = 0.33;
         JPanel methodPromptPanel = this.createTemplateSection("方法注释提示词", 150);
         this.methodPrompt = (JTextArea) ((JBScrollPane) methodPromptPanel.getComponent(0)).getViewport().getView();
         panel.add(methodPromptPanel, gbc);
-        
+
         // 字段注释提示词
         gbc.gridy = 2;
         gbc.weighty = 0.34;
         JPanel fieldPromptPanel = this.createTemplateSection("字段注释提示词", 150);
         this.fieldPrompt = (JTextArea) ((JBScrollPane) fieldPromptPanel.getComponent(0)).getViewport().getView();
         panel.add(fieldPromptPanel, gbc);
-        
+
         return panel;
     }
 
@@ -458,16 +455,16 @@ public class DocConfig implements Configurable {
     private JPanel createTemplateSection(String title, int height) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder(title));
-        
+
         JTextArea textArea = new JTextArea();
         textArea.setLineWrap(false);
         textArea.setWrapStyleWord(false);
         // 使用默认等宽字体
         textArea.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12));
-        
+
         JBScrollPane scrollPane = new JBScrollPane(textArea);
         scrollPane.setPreferredSize(new Dimension(-1, height));
-        
+
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
     }
@@ -481,7 +478,7 @@ public class DocConfig implements Configurable {
     private JPanel createCustomVarsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder("自定义变量"));
-        
+
         // 创建表格
         String[] columnNames = {"变量名", "描述", "默认值"};
         this.customVarTableModel = new DefaultTableModel(columnNames, 0) {
@@ -490,23 +487,23 @@ public class DocConfig implements Configurable {
                 return true;
             }
         };
-        
+
         this.customVarTable = new JBTable(this.customVarTableModel);
         this.customVarTable.setPreferredScrollableViewportSize(new Dimension(-1, 150));
         this.customVarTable.setFillsViewportHeight(true);
-        
+
         JBScrollPane scrollPane = new JBScrollPane(this.customVarTable);
         panel.add(scrollPane, BorderLayout.CENTER);
-        
+
         // 创建按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
+
         JButton addButton = new JButton("添加");
         addButton.addActionListener(e -> {
             this.customVarTableModel.addRow(new Object[]{"", "", ""});
             this.isModified = true;
         });
-        
+
         JButton removeButton = new JButton("删除");
         removeButton.addActionListener(e -> {
             int selectedRow = this.customVarTable.getSelectedRow();
@@ -515,11 +512,11 @@ public class DocConfig implements Configurable {
                 this.isModified = true;
             }
         });
-        
+
         buttonPanel.add(addButton);
         buttonPanel.add(removeButton);
         panel.add(buttonPanel, BorderLayout.SOUTH);
-        
+
         return panel;
     }
 
@@ -532,14 +529,14 @@ public class DocConfig implements Configurable {
     private JPanel createAdvancedFeaturesPanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panel.setBorder(BorderFactory.createTitledBorder("高级特性"));
-        
+
         this.saveListener = new JBCheckBox("开启保存监听");
         this.nonStandardDoc = new JBCheckBox("添加非标注释");
         this.nonStandardDoc.setSelected(true);
-        
+
         panel.add(this.saveListener);
         panel.add(this.nonStandardDoc);
-        
+
         return panel;
     }
 
@@ -552,10 +549,10 @@ public class DocConfig implements Configurable {
     private JPanel createBuiltInVarsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder("内置变量说明"));
-        
+
         // 创建树形结构
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("内置变量");
-        
+
         // 基础参数
         DefaultMutableTreeNode baseNode = new DefaultMutableTreeNode("基础内置参数");
         DocConfigService config = DocConfigService.getInstance();
@@ -564,45 +561,45 @@ public class DocConfig implements Configurable {
             baseNode.add(new DefaultMutableTreeNode(entry.getKey() + ": " + entry.getValue()));
         }
         root.add(baseNode);
-        
+
         // Hutool工具类
         DefaultMutableTreeNode hutoolNode = new DefaultMutableTreeNode("Hutool 工具类 (str)");
         this.addHutoolMethods(hutoolNode);
         root.add(hutoolNode);
-        
+
         // 类特有参数
         DefaultMutableTreeNode classNode = new DefaultMutableTreeNode("类特有参数");
         classNode.add(new DefaultMutableTreeNode("description: 类描述（默认为类名）"));
         classNode.add(new DefaultMutableTreeNode("parameters: 泛型参数列表 (ParameterInfo)"));
         root.add(classNode);
-        
+
         // 方法特有参数
         DefaultMutableTreeNode methodNode = new DefaultMutableTreeNode("方法特有参数");
         this.addParameterInfoFields(methodNode);
         root.add(methodNode);
-        
+
         // 字段特有参数
         DefaultMutableTreeNode fieldNode = new DefaultMutableTreeNode("字段特有参数");
         fieldNode.add(new DefaultMutableTreeNode("fieldName: 字段名称"));
         fieldNode.add(new DefaultMutableTreeNode("fieldType: 字段类型"));
         root.add(fieldNode);
-        
+
         this.builtInVarsTree = new JTree(root);
         this.builtInVarsTree.setRootVisible(true);
-        
+
         // 设置树单元格渲染器
         DefaultTreeCellRenderer renderer = new DefaultTreeCellRenderer();
         this.builtInVarsTree.setCellRenderer(renderer);
-        
+
         // 展开所有节点
         for (int i = 0; i < this.builtInVarsTree.getRowCount(); i++) {
             this.builtInVarsTree.expandRow(i);
         }
-        
+
         JBScrollPane scrollPane = new JBScrollPane(this.builtInVarsTree);
         scrollPane.setPreferredSize(new Dimension(-1, 250));
         panel.add(scrollPane, BorderLayout.CENTER);
-        
+
         return panel;
     }
 
@@ -643,12 +640,12 @@ public class DocConfig implements Configurable {
             try {
                 String fieldName = field.getName();
                 String fieldDescription = fieldName;
-                
+
                 Desc descAnnotation = field.getAnnotation(Desc.class);
                 if (descAnnotation != null) {
                     fieldDescription = descAnnotation.value();
                 }
-                
+
                 node.add(new DefaultMutableTreeNode(fieldName + ": " + fieldDescription));
             } catch (Exception e) {
                 // 忽略无法访问的字段
@@ -666,25 +663,25 @@ public class DocConfig implements Configurable {
         this.classTemplate.setText(config.classTemplate);
         this.methodTemplate.setText(config.methodTemplate);
         this.fieldTemplate.setText(config.fieldTemplate);
-        
+
         // 加载AI提示词
         this.classPrompt.setText(config.classPrompt);
         this.methodPrompt.setText(config.methodPrompt);
         this.fieldPrompt.setText(config.fieldPrompt);
-        
+
         // 加载自定义变量到表格
         this.customVarTableModel.setRowCount(0);
         if (config.customParameters != null) {
-            for (Map<String, Object> param : config.customParameters) {
+            for (CustomParam param : config.customParameters) {
                 if (param != null) {
-                    String name = (String) param.get("name");
-                    String desc = (String) param.get("description");
-                    String value = (String) param.get("value");
+                    String name = param.getName();
+                    String desc = param.getDescription();
+                    String value = param.getValue();
                     this.customVarTableModel.addRow(new Object[]{name, desc, value});
                 }
             }
         }
-        
+
         this.saveListener.setSelected(config.saveListener);
         this.nonStandardDoc.setSelected(config.nonStandardDoc);
     }
@@ -711,11 +708,11 @@ public class DocConfig implements Configurable {
                 DocConfig.this.isModified = true;
             }
         };
-        
+
         this.classTemplate.getDocument().addDocumentListener(documentListener);
         this.methodTemplate.getDocument().addDocumentListener(documentListener);
         this.fieldTemplate.getDocument().addDocumentListener(documentListener);
-        
+
         this.customVarTableModel.addTableModelListener(e -> this.isModified = true);
         this.saveListener.addActionListener(e -> this.isModified = true);
         this.nonStandardDoc.addActionListener(e -> this.isModified = true);

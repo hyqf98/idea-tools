@@ -146,28 +146,39 @@ public class SpringMvcApiScanner {
                 Query<PsiClass> directClasses = AnnotatedElementsSearch.searchPsiClasses(
                         targetAnnotation, GlobalSearchScope.projectScope(project));
                 
+                // 使用Set跟踪已添加的类，避免重复
+                Set<String> addedClasses = new HashSet<>();
                 for (PsiClass psiClass : directClasses.findAll()) {
-                    apiInfos.addAll(extractApiFromController(psiClass));
-                }
-            }
-            
-            // 查找项目中的所有类，并检查它们是否通过元注解间接包含目标注解
-            for (PsiClass psiClass : getAllProjectClasses()) {
-                if (hasAnnotationRecursively(psiClass, annotationFqn)) {
-                    // 确保不重复添加
-                    boolean alreadyAdded = false;
-                    for (ApiInfo info : apiInfos) {
-                        if (info.getClassName() != null && info.getClassName().equals(psiClass.getQualifiedName())) {
-                            alreadyAdded = true;
-                            break;
-                        }
-                    }
-                    if (!alreadyAdded) {
+                    // 检查是否已添加过该类，避免重复
+                    String classQualifiedName = psiClass.getQualifiedName();
+                    if (classQualifiedName != null && !addedClasses.contains(classQualifiedName)) {
+                        addedClasses.add(classQualifiedName);
                         apiInfos.addAll(extractApiFromController(psiClass));
                     }
                 }
             }
             
+            // 查找项目中的所有类，并检查它们是否通过元注解间接包含目标注解
+            // 使用Set跟踪已添加的类，避免重复
+            Set<String> addedClasses = new HashSet<>();
+            // 先添加已找到的类
+            for (ApiInfo info : apiInfos) {
+                if (info.getClassName() != null) {
+                    addedClasses.add(info.getClassName());
+                }
+            }
+            
+            for (PsiClass psiClass : getAllProjectClasses()) {
+                if (hasAnnotationRecursively(psiClass, annotationFqn)) {
+                    String classQualifiedName = psiClass.getQualifiedName();
+                    // 确保不重复添加
+                    if (classQualifiedName != null && !addedClasses.contains(classQualifiedName)) {
+                        addedClasses.add(classQualifiedName);
+                        apiInfos.addAll(extractApiFromController(psiClass));
+                    }
+                }
+            }
+
             return apiInfos;
         });
     }

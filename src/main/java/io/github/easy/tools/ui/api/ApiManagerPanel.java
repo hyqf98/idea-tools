@@ -77,18 +77,13 @@ public class ApiManagerPanel extends JPanel {
     private List<ApiInfo> filteredApiList;
 
     // 测试相关UI与状态
-    private ApiInfo selectedApi;
-    private JPanel testPanel;
-    private JLabel methodLabel;
-    private JLabel urlLabel;
-    private JTextArea headersArea;
-    private JTextArea bodyArea;
-    private JTextArea responseArea;
-    private JButton testButton;
-    private JButton configButton;
+    private ApiTestPanel testPanel;
+    private boolean testPanelVisible = false;
+    private JSplitPane mainSplitPane;
+    private JBScrollPane leftScroll;
 
-    // API测试服务
-    private final io.github.easy.tools.service.api.ApiTestService apiTestService = new io.github.easy.tools.service.api.ApiTestService();
+    // API测试面板
+    private final ApiTestPanel apiTestPanelComponent;
 
     /**
      * 自定义树节点类，用于存储API信息并支持自定义显示文本
@@ -198,6 +193,7 @@ public class ApiManagerPanel extends JPanel {
         this.project = project;
         this.apiList = new ArrayList<>();
         this.filteredApiList = new ArrayList<>();
+        this.apiTestPanelComponent = new ApiTestPanel(project);
         this.initializeUI();
     }
 
@@ -223,9 +219,9 @@ public class ApiManagerPanel extends JPanel {
         toolbarPanel.add(searchLabel);
         toolbarPanel.add(this.searchField);
         toolbarPanel.add(Box.createHorizontalStrut(10));
-        this.configButton = new JButton("测试配置");
-        this.configButton.addActionListener(e -> new ApiTestConfigDialog(ApiManagerPanel.this.project).show());
-        toolbarPanel.add(this.configButton);
+        JButton configButton = new JButton("测试配置");
+        configButton.addActionListener(e -> this.toggleConfigPanel());
+        toolbarPanel.add(configButton);
 
         this.add(toolbarPanel, BorderLayout.NORTH);
 
@@ -265,64 +261,82 @@ public class ApiManagerPanel extends JPanel {
         });
 
         // 添加滚动面板
-        JBScrollPane leftScroll = new JBScrollPane(this.apiTree);
-        // 构建右侧测试面板
-        this.testPanel = new JPanel(new BorderLayout());
-        JPanel infoPanel = new JPanel(new GridBagLayout());
-        java.awt.GridBagConstraints gbc = new java.awt.GridBagConstraints();
-        gbc.insets = new java.awt.Insets(3, 5, 3, 5);
-        gbc.fill = java.awt.GridBagConstraints.HORIZONTAL;
-        int row = 0;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; infoPanel.add(new JLabel("方法:"), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; this.methodLabel = new JLabel(""); infoPanel.add(this.methodLabel, gbc); row++;
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0; infoPanel.add(new JLabel("完整URL:"), gbc);
-        gbc.gridx = 1; gbc.weightx = 1; this.urlLabel = new JLabel(""); infoPanel.add(this.urlLabel, gbc); row++;
-        this.testPanel.add(infoPanel, BorderLayout.NORTH);
-        JPanel editPanel = new JPanel(new BorderLayout());
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.add(new JLabel("请求头(每行: 名称:值):"), BorderLayout.NORTH);
-        this.headersArea = new JTextArea(6, 40);
-        headerPanel.add(new JBScrollPane(this.headersArea), BorderLayout.CENTER);
-        JPanel bodyPanel = new JPanel(new BorderLayout());
-        bodyPanel.add(new JLabel("请求体(JSON):"), BorderLayout.NORTH);
-        this.bodyArea = new JTextArea(8, 40);
-        bodyPanel.add(new JBScrollPane(this.bodyArea), BorderLayout.CENTER);
-        editPanel.add(headerPanel, BorderLayout.NORTH);
-        editPanel.add(bodyPanel, BorderLayout.CENTER);
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        this.testButton = new JButton("执行测试");
-        this.testButton.addActionListener(e -> this.doApiTest());
-        actionPanel.add(this.testButton);
-        editPanel.add(actionPanel, BorderLayout.SOUTH);
-        this.testPanel.add(editPanel, BorderLayout.CENTER);
-        JPanel respPanel = new JPanel(new BorderLayout());
-        respPanel.add(new JLabel("响应结果:"), BorderLayout.NORTH);
-        this.responseArea = new JTextArea(12, 40);
-        this.responseArea.setEditable(false);
-        respPanel.add(new JBScrollPane(this.responseArea), BorderLayout.CENTER);
-        this.testPanel.add(respPanel, BorderLayout.SOUTH);
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftScroll, this.testPanel);
-        splitPane.setDividerLocation(350);
-        this.add(splitPane, BorderLayout.CENTER);
+        this.leftScroll = new JBScrollPane(this.apiTree);
+        
+        // 初始化测试面板但不显示
+        this.testPanel = this.apiTestPanelComponent;
+        
+        // 默认只显示API列表
+        this.add(this.leftScroll, BorderLayout.CENTER);
 
         // 选择变更时更新右侧
         this.apiTree.addTreeSelectionListener(e -> {
             TreePath path = ApiManagerPanel.this.apiTree.getSelectionPath();
             if (path != null && path.getLastPathComponent() instanceof ApiTreeNode) {
                 ApiTreeNode node = (ApiTreeNode) path.getLastPathComponent();
-                ApiManagerPanel.this.selectedApi = node.getApiInfo();
-                ApiManagerPanel.this.methodLabel.setText(ApiManagerPanel.this.selectedApi.getMethod());
-                String base = io.github.easy.tools.ui.config.ApiTestConfigState.getInstance(ApiManagerPanel.this.project).baseUrl;
-                String apiPath = ApiManagerPanel.this.selectedApi.getUrl();
-                if (base == null || base.isEmpty() || apiPath == null) {
-                    ApiManagerPanel.this.urlLabel.setText(apiPath);
-                } else {
-                    String b = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-                    String p = apiPath.startsWith("/") ? apiPath : "/" + apiPath;
-                    ApiManagerPanel.this.urlLabel.setText(b + p);
+                ApiInfo selectedApi = node.getApiInfo();
+                ApiManagerPanel.this.apiTestPanelComponent.updateSelectedApi(selectedApi);
+                
+                // 选中API后自动显示测试面板
+                if (!ApiManagerPanel.this.testPanelVisible) {
+                    ApiManagerPanel.this.showTestPanel();
                 }
             }
         });
+    }
+
+    /**
+     * 显示测试面板（用于选中API时自动显示）
+     */
+    private void showTestPanel() {
+        if (this.testPanelVisible) {
+            return;
+        }
+        
+        this.testPanelVisible = true;
+        
+        // 移除当前的组件
+        this.remove(this.leftScroll);
+        
+        // 创建并显示分割面板，默认显示请求配置Tab
+        this.apiTestPanelComponent.showRequestConfig();
+        this.mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, this.leftScroll, this.testPanel);
+        this.mainSplitPane.setDividerLocation(350);
+        this.add(this.mainSplitPane, BorderLayout.CENTER);
+        
+        // 刷新布局
+        this.revalidate();
+        this.repaint();
+    }
+
+    /**
+     * 切换配置面板的显示/隐藏状态
+     */
+    private void toggleConfigPanel() {
+        this.testPanelVisible = !this.testPanelVisible;
+        
+        // 移除当前的组件
+        this.remove(this.leftScroll);
+        if (this.mainSplitPane != null) {
+            this.remove(this.mainSplitPane);
+        }
+        
+        if (this.testPanelVisible) {
+            // 显示测试面板：切换到全局配置Tab
+            this.apiTestPanelComponent.showGlobalConfig();
+            
+            // 创建并显示分割面板
+            this.mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, this.leftScroll, this.testPanel);
+            this.mainSplitPane.setDividerLocation(350);
+            this.add(this.mainSplitPane, BorderLayout.CENTER);
+        } else {
+            // 隐藏测试面板：只显示API列表
+            this.add(this.leftScroll, BorderLayout.CENTER);
+        }
+        
+        // 刷新布局
+        this.revalidate();
+        this.repaint();
     }
 
     /**
@@ -643,37 +657,6 @@ public class ApiManagerPanel extends JPanel {
         @Override
         public void actionPerformed(ActionEvent e) {
             ApiManagerPanel.this.filterApiList(ApiManagerPanel.this.searchField.getText());
-        }
-    }
-
-    /**
-     * 执行所选API的测试请求
-     */
-    private void doApiTest() {
-        if (this.selectedApi == null) {
-            if (this.responseArea != null) {
-                this.responseArea.setText("请在左侧选择一个API方法");
-            }
-            return;
-        }
-        java.util.Map<String, String> hdrs = new java.util.HashMap<>();
-        String text = this.headersArea != null ? this.headersArea.getText() : null;
-        if (text != null && !text.trim().isEmpty()) {
-            for (String line : text.split("\n")) {
-                String l = line.trim();
-                if (l.isEmpty()) {
-                    continue;
-                }
-                int idx = l.indexOf(":");
-                if (idx > 0) {
-                    hdrs.put(l.substring(0, idx).trim(), l.substring(idx + 1).trim());
-                }
-            }
-        }
-        String body = this.bodyArea != null ? this.bodyArea.getText() : null;
-        String resp = this.apiTestService.execute(this.project, this.selectedApi, hdrs, body);
-        if (this.responseArea != null) {
-            this.responseArea.setText(resp);
         }
     }
 }

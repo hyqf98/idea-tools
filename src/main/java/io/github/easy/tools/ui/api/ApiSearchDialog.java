@@ -27,7 +27,9 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,11 +38,11 @@ import java.util.stream.Collectors;
 
 /**
  * API搜索对话框
- * 支持通过快捷键快速搜索和跳转到API接口，提供实时过滤和键盘导航功能
+ * 支持通过快捷键快速搜索和跳转到API接口，提供按回车触发搜索和键盘导航功能
  * 
  * <p>主要功能：</p>
  * <ul>
- *   <li>实时搜索：输入即搜索，无需按回车键确认</li>
+ *   <li>按回车搜索：输入关键字后按回车键开始搜索，避免实时搜索的性能问题</li>
  *   <li>键盘导航：支持上下箭头键选择，回车键确认跳转</li>
  *   <li>快速跳转：双击或回车可快速跳转到对应的API方法源码</li>
  *   <li>异步加载：后台线程加载API数据，避免阻塞UI</li>
@@ -57,7 +59,7 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>用户按下快捷键（Ctrl+\）打开对话框</li>
  *   <li>对话框显示搜索输入框，自动获取焦点</li>
- *   <li>用户输入搜索关键字，实时显示匹配结果</li>
+ *   <li>用户输入搜索关键字，按回车键触发搜索</li>
  *   <li>用户使用上下箭头键选择API接口</li>
  *   <li>用户按回车键或双击结果跳转到对应源码</li>
  * </ol>
@@ -83,6 +85,8 @@ public class ApiSearchDialog extends DialogWrapper {
     private DefaultListModel<ApiInfo> listModel;
     /** 过滤后的API接口列表，根据搜索条件筛选后的结果 */
     private List<ApiInfo> filteredApis;
+    /** 用于去重的Set，避免显示重复的API接口 */
+    private Set<String> uniqueApiSignatures;
     /** 结果面板，包含结果列表和滚动条 */
     private JPanel resultPanel;
     /** 滚动面板，为结果列表提供滚动功能 */
@@ -95,6 +99,8 @@ public class ApiSearchDialog extends DialogWrapper {
     private String lastSearchKeyword = "";
     /** 导航键是否被按下的标志，用于区分导航操作和输入操作 */
     private boolean isNavigationKeyPressed = false;
+    /** 是否已执行过搜索的标志 */
+    private boolean hasSearched = false;
 
     /**
      * 构造函数
@@ -118,6 +124,7 @@ public class ApiSearchDialog extends DialogWrapper {
         this.apisLoaded = false;
         // 初始时不显示任何API
         this.filteredApis = new ArrayList<>();
+        this.uniqueApiSignatures = new HashSet<>();
         this.setTitle("API搜索");
         this.setResizable(true); // 允许调整大小
         this.setSize(500, 150); // 设置默认大小，只显示输入框
@@ -135,6 +142,17 @@ public class ApiSearchDialog extends DialogWrapper {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    // 如果还没有执行过搜索，则执行搜索
+                    if (!ApiSearchDialog.this.hasSearched) {
+                        String currentText = ApiSearchDialog.this.searchField.getText();
+                        if (!currentText.equals(ApiSearchDialog.this.lastSearchKeyword)) {
+                            ApiSearchDialog.this.performSearchWithDebounce(currentText);
+                            ApiSearchDialog.this.hasSearched = true;
+                        }
+                        e.consume(); // 防止事件继续传播
+                        return;
+                    }
+                    
                     // 回车键跳转到选中的API
                     if (ApiSearchDialog.this.resultList != null && ApiSearchDialog.this.resultList.getModel().getSize() > 0) {
                         int selectedIndex = ApiSearchDialog.this.resultList.getSelectedIndex();
@@ -189,13 +207,7 @@ public class ApiSearchDialog extends DialogWrapper {
 
             @Override
             public void keyReleased(KeyEvent e) {
-                // 处理导航键时不触发搜索
-                if (!ApiSearchDialog.this.isNavigationKeyPressed) {
-                    String currentText = ApiSearchDialog.this.searchField.getText();
-                    if (!currentText.equals(ApiSearchDialog.this.lastSearchKeyword)) {
-                        ApiSearchDialog.this.performSearchWithDebounce(currentText);
-                    }
-                }
+                // 不再在keyReleased中执行实时搜索
                 // 重置导航键状态
                 ApiSearchDialog.this.isNavigationKeyPressed = false;
             }
@@ -288,6 +300,8 @@ public class ApiSearchDialog extends DialogWrapper {
         super.show();
         // 对话框显示后自动获取焦点
         this.searchField.requestFocusInWindow();
+        // 重置搜索状态
+        this.hasSearched = false;
     }
 
     /**
@@ -457,17 +471,29 @@ public class ApiSearchDialog extends DialogWrapper {
 
             String lowerKeyword = keyword.toLowerCase().trim();
             // 优化搜索逻辑，先进行粗略过滤再进行详细过滤
+            // 清空去重集合
+            this.uniqueApiSignatures.clear();
             this.filteredApis = this.allApis.parallelStream()
-                    .filter(api ->
-                        api.getName().toLowerCase().contains(lowerKeyword) ||
-                        api.getUrl().toLowerCase().contains(lowerKeyword) ||
-                        api.getMethod().toLowerCase().contains(lowerKeyword) ||
-                        (api.getControllerDescription() != null &&
-                         api.getControllerDescription().toLowerCase().contains(lowerKeyword)) ||
-                        (api.getClassName() != null &&
-                         api.getClassName().toLowerCase().contains(lowerKeyword))
-                    )
-                    .limit(5) // 限制结果数量为5条
+                    .filter(api -> {
+                        // 构建API签名用于去重
+                        String signature = api.getMethod() + "|" + api.getUrl() + "|" + api.getClassName() + "|" + api.getMethodName();
+                        // 检查是否已存在相同签名的API
+                        if (this.uniqueApiSignatures.contains(signature)) {
+                            return false;
+                        }
+                        // 添加到去重集合
+                        this.uniqueApiSignatures.add(signature);
+                        
+                        // 进行关键字匹配
+                        return api.getName().toLowerCase().contains(lowerKeyword) ||
+                               api.getUrl().toLowerCase().contains(lowerKeyword) ||
+                               api.getMethod().toLowerCase().contains(lowerKeyword) ||
+                               (api.getControllerDescription() != null &&
+                                api.getControllerDescription().toLowerCase().contains(lowerKeyword)) ||
+                               (api.getClassName() != null &&
+                                api.getClassName().toLowerCase().contains(lowerKeyword));
+                    })
+                    .limit(10) // 限制结果数量为10条以提升性能
                     .collect(Collectors.toList());
 
             for (ApiInfo api : this.filteredApis) {

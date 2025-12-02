@@ -1,5 +1,7 @@
 package io.github.easy.tools.service.api;
 
+import cn.hutool.core.util.ReUtil;
+import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.intellij.openapi.application.ApplicationManager;
@@ -30,6 +32,152 @@ public class ApiTestService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+
+    /**
+     * 执行API请求（支持动态请求头解析）
+     *
+     * @param project 项目
+     * @param apiInfo API信息
+     * @param interfaceHeaders 接口级请求头列表
+     * @param bodyJson 请求体（JSON，可为空）
+     * @return 包含statusCode、headers、body的Map
+     */
+    public Map<String, Object> executeWithHeaders(Project project, ApiInfo apiInfo, 
+                                                   List<ApiTestConfigState.HeaderItem> interfaceHeaders, 
+                                                   String bodyJson) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            ApiTestConfigState cfg = ApiTestConfigState.getInstance(project);
+            Map<String, String> headers = new HashMap<>();
+            
+            // 1. 解析全局请求头（支持动态值）
+            Map<String, String> globalHeaders = this.resolveHeaders(cfg.commonHeaders, cfg.baseUrl);
+            headers.putAll(globalHeaders);
+            
+            // 2. 解析接口级请求头（优先级更高，会覆盖全局）
+            Map<String, String> localHeaders = this.resolveHeaders(interfaceHeaders, cfg.baseUrl);
+            headers.putAll(localHeaders);
+            
+            // 3. 前置登录请求
+            TokenCacheService tokenCache = ApplicationManager.getApplication().getService(TokenCacheService.class);
+            String token = tokenCache.getValidToken();
+            if (token == null && cfg.preRequestEnabled) {
+                token = this.executePreRequestAndCache(cfg, tokenCache);
+            }
+            // 将Token挂载到头
+            if (token != null && cfg.preRequest != null && cfg.preRequest.getTokenHeaderName() != null) {
+                String headerName = cfg.preRequest.getTokenHeaderName();
+                String value = cfg.preRequest.isUseBearer() ? "Bearer " + token : token;
+                headers.put(headerName, value);
+            }
+            
+            String url = this.buildAbsoluteUrl(cfg.baseUrl, apiInfo.getUrl());
+            HttpRequest request = this.buildRequest(url, apiInfo.getMethod(), headers, bodyJson);
+            HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            result.put("statusCode", response.statusCode());
+            result.put("headers", response.headers().map());
+            result.put("body", response.body());
+            return result;
+        } catch (Exception e) {
+            NotificationUtil.showError(project, "API请求失败: " + e.getMessage());
+            result.put("statusCode", 0);
+            result.put("headers", new HashMap<>());
+            result.put("body", "错误: " + e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * 解析请求头列表（支持FIXED和DYNAMIC两种类型）
+     *
+     * @param headerItems 请求头配置列表
+     * @param baseUrl 基础URL
+     * @return 解析后的请求头Map
+     */
+    private Map<String, String> resolveHeaders(List<ApiTestConfigState.HeaderItem> headerItems, String baseUrl) {
+        Map<String, String> headers = new HashMap<>();
+        if (headerItems == null) {
+            return headers;
+        }
+        for (ApiTestConfigState.HeaderItem item : headerItems) {
+            if (item == null || StrUtil.isBlank(item.getName())) {
+                continue;
+            }
+            String value = null;
+            if (item.getValueType() == ApiTestConfigState.ValueType.DYNAMIC) {
+                // 动态获取值：先调用来源接口，再通过表达式提取
+                value = this.resolveDynamicValue(item, baseUrl);
+            } else {
+                // 固定值
+                value = item.getValue();
+            }
+            if (value != null) {
+                headers.put(item.getName(), value);
+            }
+        }
+        return headers;
+    }
+
+    /**
+     * 解析动态请求头值：调用来源接口，使用hutool风格的表达式提取值
+     *
+     * @param item 请求头配置项
+     * @param baseUrl 基础URL
+     * @return 解析后的值
+     */
+    private String resolveDynamicValue(ApiTestConfigState.HeaderItem item, String baseUrl) {
+        try {
+            if (StrUtil.isBlank(item.getSourceUrl())) {
+                return null;
+            }
+            // 调用来源接口
+            String url = this.buildAbsoluteUrl(baseUrl, item.getSourceUrl());
+            HttpRequest request = this.buildRequest(
+                url, 
+                StrUtil.isBlank(item.getSourceMethod()) ? "GET" : item.getSourceMethod(), 
+                null, 
+                item.getSourceBody()
+            );
+            HttpResponse<String> response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
+            
+            // 使用表达式提取值（支持${response.data.token}语法）
+            String expression = item.getValue();
+            if (StrUtil.isBlank(expression)) {
+                return responseBody;
+            }
+            return this.extractValueByExpression(responseBody, expression);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 使用表达式从响应中提取值
+     * 支持语法：${response.data.token} 或直接使用jsonPath如 data.token
+     *
+     * @param responseBody 响应体JSON
+     * @param expression 表达式
+     * @return 提取的值
+     */
+    private String extractValueByExpression(String responseBody, String expression) {
+        try {
+            // 提取${...}中的路径
+            String jsonPath = expression;
+            if (expression.contains("${") && expression.contains("}")) {
+                jsonPath = ReUtil.get("\\$\\{(.+?)\\}", expression, 1);
+            }
+            // 去掉response.前缀（如果有）
+            if (jsonPath != null && jsonPath.startsWith("response.")) {
+                jsonPath = jsonPath.substring("response.".length());
+            }
+            // 使用JSON路径提取
+            return this.extractToken(responseBody, jsonPath);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     /**
      * 执行API请求（自动处理前置登录与公共头）

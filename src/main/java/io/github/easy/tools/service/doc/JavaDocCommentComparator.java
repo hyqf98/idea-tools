@@ -8,8 +8,17 @@ import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiJavaDocumentedElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.javadoc.PsiDocComment;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiPredicate;
 
 /**
  * Java注释比较器实现 <p> 用于比较Java元素是否已存在注释以及注释内容是否相同 </p>
@@ -187,163 +196,377 @@ public class JavaDocCommentComparator implements DocCommentComparator {
     }
 
     /**
-     * Merge Tags
+     * 合并标签
      *
      * @param element element
      * @param newCommentText new comment text
      * @param oldDocComment old doc comment
      * @return string
      * @since 1.0.0
-     */ // 新增：只新增/删除标签的合并逻辑与泛型兼容处理
-    private String mergeTags(@NotNull com.intellij.psi.PsiElement element, @NotNull String newCommentText, @NotNull com.intellij.psi.javadoc.PsiDocComment oldDocComment) {
-        String[] newLines = newCommentText.split("\n");
-        // 收集旧标签文本
-        java.util.List<String> oldParamLines = new java.util.ArrayList<>();
-        java.util.List<String> oldThrowsLines = new java.util.ArrayList<>();
-        String oldReturnLine = null;
-        java.util.Map<String, String> oldParamMap = new java.util.LinkedHashMap<>();
-        java.util.Set<String> oldThrowsSet = new java.util.LinkedHashSet<>();
-
-        String oldText = oldDocComment.getText();
-        for (String l : oldText.split("\n")) {
-            String t = l.trim();
-            if (t.startsWith("* @param") || t.startsWith("*@param")) {
-                String name = extractParamName(t);
-                oldParamLines.add(l);
-                if (name != null) oldParamMap.put(name, l);
-            } else if (t.startsWith("* @return") || t.startsWith("*@return")) {
-                oldReturnLine = l;
-            } else if (t.startsWith("* @throws") || t.startsWith("*@throws") || t.startsWith("* @exception")) {
-                String ex = extractFirstToken(t);
-                oldThrowsLines.add(l);
-                if (ex != null) oldThrowsSet.add(ex);
-            }
+     */
+    private String mergeTags(@NotNull PsiElement element, @NotNull String newCommentText, @NotNull PsiDocComment oldDocComment) {
+        // 判断元素类型,对于方法使用方法标签合并策略,对于类使用类标签合并策略
+        if (element instanceof PsiMethod) {
+            return this.mergeMethodTags(element, newCommentText, oldDocComment);
+        } else {
+            // 类、字段等其他元素:保留旧标签,追加新标签(不删除、不覆盖)
+            return this.mergeSimpleTags(newCommentText, oldDocComment);
         }
+    }
 
-        // 收集新标签文本
-        java.util.Map<String, String> newParamMap = new java.util.LinkedHashMap<>();
-        String newReturnLine = null;
-        java.util.Map<String, String> newThrowsMap = new java.util.LinkedHashMap<>();
-        for (String l : newLines) {
-            String t = l.trim();
-            if (t.startsWith("* @param") || t.startsWith("*@param")) {
-                String name = extractParamName(t);
-                if (name != null) newParamMap.put(name, l);
-            } else if (t.startsWith("* @return") || t.startsWith("*@return")) {
-                newReturnLine = l;
-            } else if (t.startsWith("* @throws") || t.startsWith("*@throws") || t.startsWith("* @exception")) {
-                String ex = extractFirstToken(t);
-                if (ex != null) newThrowsMap.put(ex, l);
-            }
+    /**
+     * 合并方法标签
+     *
+     * @param element element
+     * @param newCommentText new comment text
+     * @param oldDocComment old doc comment
+     * @return string
+     * @since 1.0.0
+     */
+    private String mergeMethodTags(@NotNull PsiElement element, @NotNull String newCommentText, @NotNull PsiDocComment oldDocComment) {
+        if (!(element instanceof PsiMethod method)) {
+            return newCommentText;
         }
 
-        // 计算当前代码的参数/类型信息
-        java.util.Set<String> currentParamNames = new java.util.LinkedHashSet<>();
-        java.util.Set<String> currentTypeParamNames = new java.util.LinkedHashSet<>();
-        java.util.Set<String> currentThrows = new java.util.LinkedHashSet<>();
-        boolean hasReturn = false;
-        if (element instanceof PsiMethod method) {
-            for (PsiParameter p : method.getParameterList().getParameters()) {
-                currentParamNames.add(p.getName());
-            }
-            for (com.intellij.psi.PsiTypeParameter tp : method.getTypeParameters()) {
-                currentTypeParamNames.add("<" + tp.getName() + ">");
-            }
-            for (PsiClassType exType : method.getThrowsList().getReferencedTypes()) {
-                currentThrows.add(exType.getPresentableText());
-            }
-            hasReturn = method.getReturnType() != null && !"void".equals(method.getReturnType().getPresentableText());
-        }
+        // 收集旧注释中的标签
+        TagCollector oldTags = this.collectTags(oldDocComment.getText());
+        // 收集新注释中的标签
+        TagCollector newTags = this.collectTags(newCommentText);
 
-        // 合并参数标签：保留旧 -> 追加新 -> 删除已失效
-        java.util.List<String> mergedParamLines = new java.util.ArrayList<>();
-        java.util.Set<String> validParamNames = new java.util.LinkedHashSet<>();
-        validParamNames.addAll(currentParamNames);
-        validParamNames.addAll(currentTypeParamNames);
-        for (java.util.Map.Entry<String, String> e : oldParamMap.entrySet()) {
-            if (validParamNames.contains(e.getKey())) {
-                mergedParamLines.add(e.getValue());
-            }
-        }
-        for (java.util.Map.Entry<String, String> e : newParamMap.entrySet()) {
-            if (validParamNames.contains(e.getKey()) && !oldParamMap.containsKey(e.getKey())) {
-                mergedParamLines.add(e.getValue());
-            }
-        }
+        // 获取当前方法的实际信息
+        MethodInfo methodInfo = this.extractMethodInfo(method);
 
-        // 合并return：保留旧；若无旧且有新且有返回，则追加；若无返回则不输出
-        String mergedReturn = null;
-        if (hasReturn) {
-            mergedReturn = oldReturnLine != null ? oldReturnLine : newReturnLine;
-        }
+        // 合并各类标签
+        List<String> mergedParams = this.mergeTagsWithValidation(
+                oldTags.paramMap, newTags.paramMap, methodInfo.validParamNames,
+                (key, validKeys) -> validKeys.contains(key)
+        );
 
-        // 合并throws：保留旧中仍抛出的；为新且抛出的追加
-        java.util.List<String> mergedThrowsLines = new java.util.ArrayList<>();
-        for (String l : oldThrowsLines) {
-            String ex = extractFirstToken(l.trim());
-            if (ex != null && currentThrows.contains(ex)) {
-                mergedThrowsLines.add(l);
+        String mergedReturn = this.mergeSingleTag(
+                oldTags.returnLine, newTags.returnLine, methodInfo.hasReturn
+        );
+
+        List<String> mergedThrows = this.mergeTagsWithValidation(
+                oldTags.throwsMap, newTags.throwsMap, methodInfo.throwsNames,
+                (key, validKeys) -> validKeys.contains(key)
+        );
+
+        List<String> mergedOtherTags = this.mergeSimpleTagsMap(
+                oldTags.otherTagsMap, newTags.otherTagsMap
+        );
+
+        // 重新组装注释
+        return this.reassembleComment(newCommentText, mergedParams, mergedReturn, mergedThrows, mergedOtherTags);
+    }
+
+    /**
+     * 合并简单标签(包括类、字段等)
+     * <p>
+     * 策略:保留旧标签,追加新标签(如果旧注释中没有),不删除、不覆盖
+     * </p>
+     *
+     * @param newCommentText new comment text
+     * @param oldDocComment old doc comment
+     * @return string
+     * @since 1.0.0
+     */
+    private String mergeSimpleTags(@NotNull String newCommentText, @NotNull PsiDocComment oldDocComment) {
+        // 收集旧注释和新注释中的标签
+        Map<String, String> oldTagsMap = this.collectSimpleTags(oldDocComment.getText());
+        Map<String, String> newTagsMap = this.collectSimpleTags(newCommentText);
+
+        // 合并标签:保留旧标签,追加新标签(如果旧注释中没有)
+        List<String> mergedTagLines = this.mergeSimpleTagsMap(oldTagsMap, newTagsMap);
+
+        // 重新组装注释
+        return this.reassembleSimpleComment(newCommentText, mergedTagLines);
+    }
+
+    /**
+     * 收集标签信息
+     *
+     * @param commentText 注释文本
+     * @return 标签收集器
+     * @since 1.0.0
+     */
+    private TagCollector collectTags(String commentText) {
+        TagCollector collector = new TagCollector();
+        for (String line : commentText.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("* @param") || trimmed.startsWith("*@param")) {
+                String name = this.extractTokenAfterTag(trimmed, "param");
+                if (name != null) {
+                    collector.paramMap.put(name, line);
+                }
+            } else if (trimmed.startsWith("* @return") || trimmed.startsWith("*@return")) {
+                collector.returnLine = line;
+            } else if (trimmed.startsWith("* @throws") || trimmed.startsWith("*@throws") 
+                    || trimmed.startsWith("* @exception")) {
+                String exName = this.extractTokenAfterTag(trimmed, "throws", "exception");
+                if (exName != null) {
+                    collector.throwsMap.put(exName, line);
+                }
+            } else if (trimmed.startsWith("* @") || trimmed.startsWith("*@")) {
+                String tagName = this.extractTagName(trimmed);
+                if (tagName != null && !collector.otherTagsMap.containsKey(tagName)) {
+                    collector.otherTagsMap.put(tagName, line);
+                }
             }
         }
-        for (java.util.Map.Entry<String, String> e : newThrowsMap.entrySet()) {
-            if (currentThrows.contains(e.getKey()) && !oldThrowsSet.contains(e.getKey())) {
-                mergedThrowsLines.add(e.getValue());
+        return collector;
+    }
+
+    /**
+     * 收集简单标签(类、字段等)
+     *
+     * @param commentText 注释文本
+     * @return 标签映射
+     * @since 1.0.0
+     */
+    private Map<String, String> collectSimpleTags(String commentText) {
+        Map<String, String> tagsMap = new LinkedHashMap<>();
+        for (String line : commentText.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("* @") || trimmed.startsWith("*@")) {
+                String tagName = this.extractTagName(trimmed);
+                if (tagName != null && !tagsMap.containsKey(tagName)) {
+                    tagsMap.put(tagName, line);
+                }
             }
         }
+        return tagsMap;
+    }
 
-        // 重新组装：保留描述与非标签行，用合并后的标签替换原标签部分
+    /**
+     * 提取方法信息
+     *
+     * @param method 方法元素
+     * @return 方法信息
+     * @since 1.0.0
+     */
+    private MethodInfo extractMethodInfo(PsiMethod method) {
+        MethodInfo info = new MethodInfo();
+        // 收集参数名
+        for (PsiParameter param : method.getParameterList().getParameters()) {
+            info.validParamNames.add(param.getName());
+        }
+        // 收集泛型参数名
+        for (PsiTypeParameter typeParam : method.getTypeParameters()) {
+            info.validParamNames.add("<" + typeParam.getName() + ">");
+        }
+        // 收集异常名
+        for (PsiClassType exType : method.getThrowsList().getReferencedTypes()) {
+            info.throwsNames.add(exType.getPresentableText());
+        }
+        // 检查是否有返回值
+        info.hasReturn = method.getReturnType() != null 
+                && !"void".equals(method.getReturnType().getPresentableText());
+        return info;
+    }
+
+    /**
+     * 合并带验证的标签
+     * <p>
+     * 根据验证条件决定标签是否保留:保留旧标签(如果通过验证),追加新标签(如果不存在且通过验证)
+     * </p>
+     *
+     * @param oldTagsMap 旧标签映射
+     * @param newTagsMap 新标签映射
+     * @param validKeys 有效的键集合
+     * @param validator 验证器
+     * @return 合并后的标签行列表
+     * @since 1.0.0
+     */
+    private List<String> mergeTagsWithValidation(
+            Map<String, String> oldTagsMap,
+            Map<String, String> newTagsMap,
+            Set<String> validKeys,
+            BiPredicate<String, Set<String>> validator
+    ) {
+        List<String> merged = new ArrayList<>();
+        // 保留旧标签中仍然有效的
+        for (Map.Entry<String, String> entry : oldTagsMap.entrySet()) {
+            if (validator.test(entry.getKey(), validKeys)) {
+                merged.add(entry.getValue());
+            }
+        }
+        // 追加新标签中不存在于旧标签且有效的
+        for (Map.Entry<String, String> entry : newTagsMap.entrySet()) {
+            if (!oldTagsMap.containsKey(entry.getKey()) && validator.test(entry.getKey(), validKeys)) {
+                merged.add(entry.getValue());
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 合并单个标签
+     *
+     * @param oldTag 旧标签
+     * @param newTag 新标签
+     * @param shouldKeep 是否应该保留标签
+     * @return 合并后的标签
+     * @since 1.0.0
+     */
+    private String mergeSingleTag(String oldTag, String newTag, boolean shouldKeep) {
+        if (!shouldKeep) {
+            return null;
+        }
+        return oldTag != null ? oldTag : newTag;
+    }
+
+    /**
+     * 合并简单标签映射
+     * <p>
+     * 策略:保留所有旧标签,追加新标签(如果不存在)
+     * </p>
+     *
+     * @param oldTagsMap 旧标签映射
+     * @param newTagsMap 新标签映射
+     * @return 合并后的标签行列表
+     * @since 1.0.0
+     */
+    private List<String> mergeSimpleTagsMap(Map<String, String> oldTagsMap, Map<String, String> newTagsMap) {
+        List<String> merged = new ArrayList<>(oldTagsMap.values());
+        for (Map.Entry<String, String> entry : newTagsMap.entrySet()) {
+            if (!oldTagsMap.containsKey(entry.getKey())) {
+                merged.add(entry.getValue());
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 重新组装注释
+     *
+     * @param newCommentText 新注释文本
+     * @param mergedParams 合并后的参数标签
+     * @param mergedReturn 合并后的返回值标签
+     * @param mergedThrows 合并后的异常标签
+     * @param mergedOtherTags 合并后的其他标签
+     * @return 重组后的注释
+     * @since 1.0.0
+     */
+    private String reassembleComment(
+            String newCommentText,
+            List<String> mergedParams,
+            String mergedReturn,
+            List<String> mergedThrows,
+            List<String> mergedOtherTags
+    ) {
         StringBuilder out = new StringBuilder();
-        for (String l : newLines) {
-            String t = l.trim();
-            if (t.equals("/**")) {
-                out.append(l).append("\n");
-                continue;
-            }
-            if (t.equals("*/")) {
-                for (String pl : mergedParamLines) out.append(pl).append("\n");
-                if (mergedReturn != null) out.append(mergedReturn).append("\n");
-                for (String tl : mergedThrowsLines) out.append(tl).append("\n");
-                out.append(l);
+        for (String line : newCommentText.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.equals("/**")) {
+                out.append(line).append("\n");
+            } else if (trimmed.equals("*/")) {
+                // 按顺序添加所有标签
+                mergedParams.forEach(tag -> out.append(tag).append("\n"));
+                if (mergedReturn != null) {
+                    out.append(mergedReturn).append("\n");
+                }
+                mergedThrows.forEach(tag -> out.append(tag).append("\n"));
+                mergedOtherTags.forEach(tag -> out.append(tag).append("\n"));
+                out.append(line);
                 break;
+            } else if (!trimmed.startsWith("* @") && !trimmed.startsWith("*@")) {
+                // 保留描述行
+                out.append(line).append("\n");
             }
-            if (t.startsWith("* @") || t.startsWith("*@")) {
-                // 跳过原标签行
-                continue;
-            }
-            out.append(l).append("\n");
         }
         return out.toString();
     }
 
     /**
-     * Extract Param Name
+     * 重新组装简单注释
      *
-     * @param trimmedLine trimmed line
-     * @return string
+     * @param newCommentText 新注释文本
+     * @param mergedTagLines 合并后的标签行
+     * @return 重组后的注释
      * @since 1.0.0
      */
-    private String extractParamName(String trimmedLine) {
-        String s = trimmedLine.replaceFirst("^\\*\\s*@param\\s*", "").replaceFirst("^\\*@param\\s*", "");
-        if (s.isEmpty()) return null;
+    private String reassembleSimpleComment(String newCommentText, List<String> mergedTagLines) {
+        StringBuilder out = new StringBuilder();
+        for (String line : newCommentText.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.equals("/**")) {
+                out.append(line).append("\n");
+            } else if (trimmed.equals("*/")) {
+                mergedTagLines.forEach(tag -> out.append(tag).append("\n"));
+                out.append(line);
+                break;
+            } else if (!trimmed.startsWith("* @") && !trimmed.startsWith("*@")) {
+                out.append(line).append("\n");
+            }
+        }
+        return out.toString();
+    }
+
+    /**
+     * 提取标签名
+     *
+     * @param trimmedLine 修剪后的行
+     * @return 标签名
+     * @since 1.0.0
+     */
+    private String extractTagName(String trimmedLine) {
+        String s = trimmedLine.replaceFirst("^\\*\\s*@", "").replaceFirst("^\\*@", "");
+        if (s.isEmpty()) {
+            return null;
+        }
+        int idx = s.indexOf(' ');
+        String tagName = idx > 0 ? s.substring(0, idx).trim() : s.trim();
+        return tagName.isEmpty() ? null : tagName;
+    }
+
+    /**
+     * 提取标签后的第一个token
+     *
+     * @param trimmedLine 修剪后的行
+     * @param tagNames 标签名数组
+     * @return 提取的token
+     * @since 1.0.0
+     */
+    private String extractTokenAfterTag(String trimmedLine, String... tagNames) {
+        String s = trimmedLine;
+        for (String tagName : tagNames) {
+            s = s.replaceFirst("^\\*\\s*@" + tagName + "\\s*", "")
+                    .replaceFirst("^\\*@" + tagName + "\\s*", "");
+        }
+        if (s.isEmpty() || s.equals(trimmedLine)) {
+            return null;
+        }
         int idx = s.indexOf(' ');
         String token = idx > 0 ? s.substring(0, idx).trim() : s.trim();
         return token.isEmpty() ? null : token;
     }
 
     /**
-     * Extract First Token
+     * 标签收集器
+     * <p>
+     * 用于收集注释中的各类标签
+     * </p>
      *
-     * @param trimmedLine trimmed line
-     * @return string
      * @since 1.0.0
      */
-    private String extractFirstToken(String trimmedLine) {
-        String s = trimmedLine.replaceFirst("^\\*\\s*@throws\\s*", "")
-                .replaceFirst("^\\*@throws\\s*", "")
-                .replaceFirst("^\\*\\s*@exception\\s*", "")
-                .replaceFirst("^\\*@exception\\s*", "");
-        int idx = s.indexOf(' ');
-        String token = idx > 0 ? s.substring(0, idx).trim() : s.trim();
-        return token.isEmpty() ? null : token;
+    private static class TagCollector {
+        Map<String, String> paramMap = new LinkedHashMap<>();
+        String returnLine = null;
+        Map<String, String> throwsMap = new LinkedHashMap<>();
+        Map<String, String> otherTagsMap = new LinkedHashMap<>();
+    }
+
+    /**
+     * 方法信息
+     * <p>
+     * 存储方法的参数、返回值、异常等信息
+     * </p>
+     *
+     * @since 1.0.0
+     */
+    private static class MethodInfo {
+        Set<String> validParamNames = new LinkedHashSet<>();
+        Set<String> throwsNames = new LinkedHashSet<>();
+        boolean hasReturn = false;
     }
 }

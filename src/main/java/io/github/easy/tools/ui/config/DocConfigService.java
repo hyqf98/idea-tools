@@ -11,6 +11,7 @@ import com.intellij.util.xmlb.XmlSerializerUtil;
 import io.github.easy.tools.constants.PromptConstants;
 import io.github.easy.tools.utils.TemplateUtils;
 import org.jetbrains.annotations.NotNull;
+import lombok.Data;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -124,7 +125,7 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
     /**
      * 自定义参数列表
      */
-    public List<Map<String, Object>> customParameters = new LinkedList<>();
+    public List<CustomParam> customParameters = new LinkedList<>();
 
     /**
      * 是否启用保存监听器
@@ -151,6 +152,18 @@ public final class DocConfigService implements PersistentStateComponent<DocConfi
      */
     public String fieldPrompt = PromptConstants.DEFAULT_FIELD_PROMPT;
 
+    /**
+     * 自定义变量实体，用于持久化存储自定义变量的名称、描述和值
+     */
+    @Data
+    public static class CustomParam {
+        /** 变量名 */
+        private String name;
+        /** 变量描述 */
+        private String description;
+        /** 变量默认值 */
+        private String value;
+    }
 
     /**
      * 获取基础参数列表

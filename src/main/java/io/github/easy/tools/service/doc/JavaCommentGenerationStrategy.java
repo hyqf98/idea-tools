@@ -611,10 +611,10 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
          */
         private void addCustomParameters(VelocityContext context) {
             DocConfigService.getInstance().customParameters.stream()
-                    .filter(param -> param != null && param.containsKey("name"))
+                    .filter(param -> param != null && StrUtil.isNotBlank(param.getName()))
                     .forEach(param -> context.put(
-                            MapUtil.getStr(param, "name"), 
-                            param.get("value")
+                            param.getName(),
+                            param.getValue()
                     ));
         }
 

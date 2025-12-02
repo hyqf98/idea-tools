@@ -27,7 +27,7 @@ import java.util.List;
  */
 @Service(Service.Level.PROJECT)
 @State(name = "EasyApiTestConfig", storages = @Storage(com.intellij.openapi.components.StoragePathMacros.WORKSPACE_FILE))
-public class ApiTestConfigState implements PersistentStateComponent<ApiTestConfigState> {
+public final class ApiTestConfigState implements PersistentStateComponent<ApiTestConfigState> {
 
     /** 服务基础地址，如：http://localhost:8080 */
     public String baseUrl = "";
@@ -46,8 +46,26 @@ public class ApiTestConfigState implements PersistentStateComponent<ApiTestConfi
     public static class HeaderItem {
         /** 头名称 */
         private String name;
-        /** 头值（支持常量或从接口返回的变量组装） */
+        /** 值类型: FIXED(固定值), DYNAMIC(从接口动态获取) */
+        private ValueType valueType = ValueType.FIXED;
+        /** 头值(固定值模式直接使用; 动态模式支持${response.data.token}语法) */
         private String value;
+        /** 动态值来源接口URL(仅在valueType=DYNAMIC时生效) */
+        private String sourceUrl;
+        /** 动态值来源接口请求方法 */
+        private String sourceMethod = "GET";
+        /** 动态值来源接口请求体 */
+        private String sourceBody;
+    }
+    
+    /**
+     * 请求头值类型枚举
+     */
+    public enum ValueType {
+        /** 固定值 */
+        FIXED,
+        /** 从接口动态获取 */
+        DYNAMIC
     }
 
     @Data

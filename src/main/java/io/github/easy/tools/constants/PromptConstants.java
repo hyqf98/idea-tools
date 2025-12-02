@@ -137,4 +137,106 @@ public final class PromptConstants {
             代码信息：
             {code}
             """;
-}
+
+    /**
+     * 代码生成系统提示词
+     * <p>
+     * 用于指导大模型根据数据库表结构生成代码文件
+     * </p>
+     */
+    public static final String CODE_GENERATION_SYSTEM_PROMPT = """
+            你是一个专业的代码生成助手，擅长根据数据库表结构生成高质量的代码。
+            
+            【核心职责】
+            1. 根据提供的数据库表结构信息，生成符合要求的代码文件
+            2. 严格遵循用户指定的代码风格和框架规范
+            3. 确保生成的代码具有良好的可读性、可维护性和扩展性
+            
+            【输出要求】
+            1. 只输出纯代码内容，不要包含任何markdown标记（如```java、```等）
+            2. 不要添加任何解释性文字或注释说明
+            3. 代码必须是完整的、可直接运行的
+            4. 使用UTF-8编码，避免使用Unicode转义字符
+            
+            【代码规范】
+            1. 类名、方法名、字段名严格遵循驼峰命名法
+            2. 数据库表名转换为类名：下划线分隔转大驼峰（如 user_info → UserInfo）
+            3. 数据库字段名转换为属性名：下划线分隔转小驼峰（如 user_name → userName）
+            4. 每个类都必须包含完整的JavaDoc注释
+            5. 字段注释应包含字段含义、类型说明
+            
+            【类型映射】
+            请根据数据库字段类型自动映射为合适的Java类型：
+            - VARCHAR/CHAR/TEXT → String
+            - INT/INTEGER/TINYINT/SMALLINT → Integer
+            - BIGINT → Long
+            - DECIMAL/NUMERIC → BigDecimal
+            - FLOAT/DOUBLE → Double
+            - DATE → LocalDate
+            - DATETIME/TIMESTAMP → LocalDateTime
+            - BOOLEAN/BIT → Boolean
+            """;
+
+    /**
+     * 代码生成默认用户提示词
+     * <p>
+     * 当用户未自定义提示词时使用，提供通用的代码生成指引
+     * </p>
+     */
+    public static final String CODE_GENERATION_DEFAULT_PROMPT = """
+            请根据以下数据库表结构生成对应的代码文件。
+            
+            【生成要求】
+            1. 代码风格：
+               - 遵循所选编程语言的最佳实践和命名规范
+               - 使用清晰、有意义的变量名和函数名
+               - 保持代码结构清晰、模块化
+            
+            2. 数据库字段映射：
+               - 表名转换：下划线分隔转为大驼峰命名（如 user_info → UserInfo）
+               - 字段名转换：下划线分隔转为小驼峰命名（如 user_name → userName）
+               - 根据目标语言选择合适的数据类型
+            
+            3. 数据类型映射参考（根据目标语言调整）：
+               - 字符串类型：VARCHAR/CHAR/TEXT → String/str/string
+               - 整数类型：INT/INTEGER/TINYINT/SMALLINT → int/Integer/int32
+               - 长整型：BIGINT → long/Long/int64
+               - 小数类型：DECIMAL/NUMERIC → BigDecimal/Decimal/decimal
+               - 浮点型：FLOAT/DOUBLE → double/Double/float64
+               - 日期类型：DATE → LocalDate/Date/datetime.date
+               - 时间类型：DATETIME/TIMESTAMP → LocalDateTime/DateTime/datetime
+               - 布尔型：BOOLEAN/BIT → boolean/Boolean/bool
+            
+            4. 注释文档：
+               - 每个类/结构体必须包含完整的文档注释
+               - 字段注释应包含字段含义、类型说明、是否可空等信息
+               - 类注释应包含表名、表注释说明、作用描述
+            
+            5. 代码特性（根据目标语言选择）：
+               - Java: 使用Lombok注解(@Data, @Builder, @NoArgsConstructor, @AllArgsConstructor)
+               - Python: 使用dataclass或pydantic的BaseModel
+               - TypeScript: 使用interface或class，添加类型注解
+               - Go: 使用struct和json tag
+               - 其他语言：遵循该语言的最佳实践
+            
+            6. 额外功能（可选）：
+               - 添加常用的getter/setter方法（如果语言需要）
+               - 添加toString/__str__等字符串转换方法
+               - 添加equals/hashCode或等价方法（如适用）
+               - 添加JSON序列化/反序列化支持
+            
+            7. 语言特定要求：
+               - Java: 所有字段使用private修饰，时间类型使用java.time包
+               - Python: 使用类型提示(type hints)，遵循 PEP 8 规范
+               - TypeScript: 使用严格模式，所有字段必须有类型定义
+               - Go: 导出字段首字母大写，添加json tag
+            
+            【表结构信息】
+            {tableStructure}
+            
+            【输出说明】
+            - 只输出纯代码内容，不要包含任何markdown标记
+            - 不要添加任何解释性文字
+            - 代码必须是完整的、可直接运行的
+            - 如果有参考文件，请严格遵循其代码风格和模式
+            """;}
