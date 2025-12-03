@@ -318,6 +318,10 @@ public class JavaDocCommentComparator implements DocCommentComparator {
 
     /**
      * 收集简单标签(类、字段等)
+     * <p>
+     * 对于@param等需要参数名的标签，使用"标签名+参数名"作为唯一key，
+     * 对于@author、@version等单一标签，使用标签名作为key
+     * </p>
      *
      * @param commentText 注释文本
      * @return 标签映射
@@ -329,8 +333,27 @@ public class JavaDocCommentComparator implements DocCommentComparator {
             String trimmed = line.trim();
             if (trimmed.startsWith("* @") || trimmed.startsWith("*@")) {
                 String tagName = this.extractTagName(trimmed);
-                if (tagName != null && !tagsMap.containsKey(tagName)) {
-                    tagsMap.put(tagName, line);
+                if (tagName == null) {
+                    continue;
+                }
+                
+                // 对于需要参数名的标签（如@param、@throws），使用"标签名+参数名"作为唯一key
+                String key;
+                if ("param".equals(tagName) || "throws".equals(tagName) || "exception".equals(tagName)) {
+                    String token = this.extractTokenAfterTag(trimmed, tagName);
+                    if (token != null) {
+                        key = tagName + ":" + token;
+                    } else {
+                        // 如果没有参数名，使用标签名作为key
+                        key = tagName;
+                    }
+                } else {
+                    // 对于单一标签，使用标签名作为key
+                    key = tagName;
+                }
+                
+                if (!tagsMap.containsKey(key)) {
+                    tagsMap.put(key, line);
                 }
             }
         }
@@ -368,6 +391,7 @@ public class JavaDocCommentComparator implements DocCommentComparator {
      * 合并带验证的标签
      * <p>
      * 根据验证条件决定标签是否保留:保留旧标签(如果通过验证),追加新标签(如果不存在且通过验证)
+     * 如果旧标签存在但描述为空,则使用新标签的描述
      * </p>
      *
      * @param oldTagsMap 旧标签映射
@@ -384,10 +408,25 @@ public class JavaDocCommentComparator implements DocCommentComparator {
             BiPredicate<String, Set<String>> validator
     ) {
         List<String> merged = new ArrayList<>();
-        // 保留旧标签中仍然有效的
+        // 保留旧标签中仍然有效的,但如果描述为空则使用新标签的描述
         for (Map.Entry<String, String> entry : oldTagsMap.entrySet()) {
             if (validator.test(entry.getKey(), validKeys)) {
-                merged.add(entry.getValue());
+                String oldTagLine = entry.getValue();
+                // 检查旧标签是否有描述
+                if (this.hasTagDescription(oldTagLine)) {
+                    // 旧标签有描述,保留旧标签
+                    merged.add(oldTagLine);
+                } else {
+                    // 旧标签无描述,尝试使用新标签的描述
+                    String newTagLine = newTagsMap.get(entry.getKey());
+                    if (newTagLine != null && this.hasTagDescription(newTagLine)) {
+                        // 新标签有描述,使用新标签
+                        merged.add(newTagLine);
+                    } else {
+                        // 新标签也无描述,保留旧标签
+                        merged.add(oldTagLine);
+                    }
+                }
             }
         }
         // 追加新标签中不存在于旧标签且有效的
@@ -419,6 +458,7 @@ public class JavaDocCommentComparator implements DocCommentComparator {
      * 合并简单标签映射
      * <p>
      * 策略:保留所有旧标签,追加新标签(如果不存在)
+     * 如果旧标签存在但描述为空,则使用新标签的描述
      * </p>
      *
      * @param oldTagsMap 旧标签映射
@@ -427,7 +467,27 @@ public class JavaDocCommentComparator implements DocCommentComparator {
      * @since 1.0.0
      */
     private List<String> mergeSimpleTagsMap(Map<String, String> oldTagsMap, Map<String, String> newTagsMap) {
-        List<String> merged = new ArrayList<>(oldTagsMap.values());
+        List<String> merged = new ArrayList<>();
+        // 保留所有旧标签,但如果描述为空则使用新标签的描述
+        for (Map.Entry<String, String> entry : oldTagsMap.entrySet()) {
+            String oldTagLine = entry.getValue();
+            // 检查旧标签是否有描述
+            if (this.hasTagDescription(oldTagLine)) {
+                // 旧标签有描述,保留旧标签
+                merged.add(oldTagLine);
+            } else {
+                // 旧标签无描述,尝试使用新标签的描述
+                String newTagLine = newTagsMap.get(entry.getKey());
+                if (newTagLine != null && this.hasTagDescription(newTagLine)) {
+                    // 新标签有描述,使用新标签
+                    merged.add(newTagLine);
+                } else {
+                    // 新标签也无描述,保留旧标签
+                    merged.add(oldTagLine);
+                }
+            }
+        }
+        // 追加新标签中不存在于旧标签的
         for (Map.Entry<String, String> entry : newTagsMap.entrySet()) {
             if (!oldTagsMap.containsKey(entry.getKey())) {
                 merged.add(entry.getValue());
@@ -539,6 +599,54 @@ public class JavaDocCommentComparator implements DocCommentComparator {
         int idx = s.indexOf(' ');
         String token = idx > 0 ? s.substring(0, idx).trim() : s.trim();
         return token.isEmpty() ? null : token;
+    }
+
+    /**
+     * 检查标签行是否包含描述
+     * <p>
+     * 对于@param、@throws等标签,需要在参数名/异常名之后还有描述内容
+     * 对于@return等标签,需要在标签名之后有描述内容
+     * </p>
+     *
+     * @param tagLine 标签行文本
+     * @return 如果包含描述返回true,否则返回false
+     * @since 1.0.0
+     */
+    private boolean hasTagDescription(String tagLine) {
+        if (StrUtil.isBlank(tagLine)) {
+            return false;
+        }
+        String trimmed = tagLine.trim();
+        // 移除前导的 * 和空格
+        if (trimmed.startsWith("*")) {
+            trimmed = trimmed.substring(1).trim();
+        }
+        // 检查是否是标签行
+        if (!trimmed.startsWith("@")) {
+            return false;
+        }
+        
+        // 对于@param、@throws、@exception等需要参数名的标签
+        if (trimmed.startsWith("@param") || trimmed.startsWith("@throws") || trimmed.startsWith("@exception")) {
+            // 移除标签名
+            String afterTag = trimmed.replaceFirst("^@(param|throws|exception)\\s*", "");
+            if (StrUtil.isBlank(afterTag)) {
+                return false;
+            }
+            // 移除参数名/异常名(第一个token)
+            int spaceIdx = afterTag.indexOf(' ');
+            if (spaceIdx <= 0) {
+                // 只有参数名/异常名,没有描述
+                return false;
+            }
+            // 检查参数名/异常名之后是否有非空描述
+            String description = afterTag.substring(spaceIdx + 1).trim();
+            return StrUtil.isNotBlank(description);
+        } else {
+            // 对于@return、@since等其他标签,检查标签名之后是否有描述
+            String afterTag = trimmed.replaceFirst("^@\\w+\\s*", "");
+            return StrUtil.isNotBlank(afterTag);
+        }
     }
 
     /**
