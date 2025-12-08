@@ -459,6 +459,7 @@ public class JavaDocCommentComparator implements DocCommentComparator {
      * <p>
      * 策略:保留所有旧标签,追加新标签(如果不存在)
      * 如果旧标签存在但描述为空,则使用新标签的描述
+     * <strong>特别注意:@since标签一旦存在于旧注释中,将被永久保留,不会被新注释覆盖</strong>
      * </p>
      *
      * @param oldTagsMap 旧标签映射
@@ -470,7 +471,15 @@ public class JavaDocCommentComparator implements DocCommentComparator {
         List<String> merged = new ArrayList<>();
         // 保留所有旧标签,但如果描述为空则使用新标签的描述
         for (Map.Entry<String, String> entry : oldTagsMap.entrySet()) {
+            String tagKey = entry.getKey();
             String oldTagLine = entry.getValue();
+            
+            // @since标签特殊处理:一旦存在则永久保留,不做任何修改
+            if ("since".equals(tagKey)) {
+                merged.add(oldTagLine);
+                continue;
+            }
+            
             // 检查旧标签是否有描述
             if (this.hasTagDescription(oldTagLine)) {
                 // 旧标签有描述,保留旧标签
@@ -488,8 +497,15 @@ public class JavaDocCommentComparator implements DocCommentComparator {
             }
         }
         // 追加新标签中不存在于旧标签的
+        // 但如果旧标签中已经有@since,则不再添加新的@since
         for (Map.Entry<String, String> entry : newTagsMap.entrySet()) {
-            if (!oldTagsMap.containsKey(entry.getKey())) {
+            String tagKey = entry.getKey();
+            // 如果是@since标签且旧标签中已存在,则跳过
+            if ("since".equals(tagKey) && oldTagsMap.containsKey("since")) {
+                continue;
+            }
+            // 其他标签正常处理
+            if (!oldTagsMap.containsKey(tagKey)) {
                 merged.add(entry.getValue());
             }
         }

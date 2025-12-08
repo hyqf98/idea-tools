@@ -91,6 +91,8 @@ public class ApiSearchDialog extends DialogWrapper {
     private JPanel resultPanel;
     /** 滚动面板，为结果列表提供滚动功能 */
     private JBScrollPane scrollPane;
+    /** 提示标签，用于显示“未搜索到接口”等提示信息 */
+    private javax.swing.JLabel emptyLabel;
     /** 当前搜索任务，用于取消之前的搜索 */
     private Future<?> searchTask;
     /** 单线程执行器，用于异步执行搜索任务 */
@@ -135,9 +137,18 @@ public class ApiSearchDialog extends DialogWrapper {
     protected @Nullable JComponent createCenterPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
+        // 创建搜索输入框面板，使用OverlayLayout实现图标叠加
+        JPanel searchPanel = new JPanel();
+        searchPanel.setLayout(new javax.swing.OverlayLayout(searchPanel));
+        
         // 创建搜索输入框
         this.searchField = new JTextField();
         this.searchField.setPreferredSize(new Dimension(480, 30));
+        this.searchField.setOpaque(false); // 设置透明以便看到下层组件
+        this.searchField.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+            javax.swing.BorderFactory.createLineBorder(java.awt.Color.GRAY, 1),
+            javax.swing.BorderFactory.createEmptyBorder(5, 10, 5, 35) // 右侧留出空间给放大镜图标
+        ));
         this.searchField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -212,12 +223,40 @@ public class ApiSearchDialog extends DialogWrapper {
                 ApiSearchDialog.this.isNavigationKeyPressed = false;
             }
         });
+        
+        // 创建放大镜图标面板
+        JPanel iconPanel = new JPanel(new BorderLayout());
+        iconPanel.setOpaque(false);
+        javax.swing.JLabel searchIconLabel = new javax.swing.JLabel("🔍");
+        searchIconLabel.setForeground(java.awt.Color.GRAY);
+        searchIconLabel.setBorder(javax.swing.BorderFactory.createEmptyBorder(5, 0, 5, 10));
+        iconPanel.add(searchIconLabel, BorderLayout.EAST);
+        
+        // 设置对齐方式以便OverlayLayout正确叠加
+        this.searchField.setAlignmentX(0.0f);
+        this.searchField.setAlignmentY(0.0f);
+        iconPanel.setAlignmentX(0.0f);
+        iconPanel.setAlignmentY(0.0f);
+        
+        // 添加组件到searchPanel（顺序很重要：先添加的在下层）
+        searchPanel.add(iconPanel);
+        searchPanel.add(this.searchField);
+        searchPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        searchPanel.setPreferredSize(new Dimension(480, 30));
 
         // 创建结果面板（初始时不显示）
         this.resultPanel = new JPanel(new BorderLayout());
         this.resultPanel.setVisible(false);
 
-        // 创建结果列表
+        // 创建空提示面板
+        JPanel emptyPanel = new JPanel(new BorderLayout());
+        this.emptyLabel = new javax.swing.JLabel("未搜索到接口，请检查关键字是否正确", javax.swing.SwingConstants.CENTER);
+        this.emptyLabel.setForeground(java.awt.Color.GRAY);
+        emptyPanel.add(this.emptyLabel, BorderLayout.CENTER);
+        emptyPanel.setVisible(false);
+
+        // 创建结果列表面板
+        JPanel listPanel = new JPanel(new BorderLayout());
         this.listModel = new DefaultListModel<>();
         this.resultList = new JBList<>(this.listModel);
         this.resultList.setCellRenderer(new ApiListCellRenderer());
@@ -264,10 +303,21 @@ public class ApiSearchDialog extends DialogWrapper {
 
         this.scrollPane = new JBScrollPane(this.resultList);
         this.scrollPane.setPreferredSize(new Dimension(480, 100)); // 设置为5行高度
+        listPanel.add(this.scrollPane, BorderLayout.CENTER);
 
-        this.resultPanel.add(this.scrollPane, BorderLayout.CENTER);
+        // 使用CardLayout来切换结果列表和空提示
+        java.awt.CardLayout cardLayout = new java.awt.CardLayout();
+        JPanel cardPanel = new JPanel(cardLayout);
+        cardPanel.add(listPanel, "list");
+        cardPanel.add(emptyPanel, "empty");
+        
+        this.resultPanel.add(cardPanel, BorderLayout.CENTER);
+        
+        // 保存cardLayout和cardPanel以便后续切换
+        this.resultPanel.putClientProperty("cardLayout", cardLayout);
+        this.resultPanel.putClientProperty("cardPanel", cardPanel);
 
-        panel.add(this.searchField, BorderLayout.NORTH);
+        panel.add(searchPanel, BorderLayout.NORTH);
         panel.add(this.resultPanel, BorderLayout.CENTER);
         panel.setPreferredSize(new Dimension(500, 350)); // 设置首选大小
 
@@ -427,6 +477,7 @@ public class ApiSearchDialog extends DialogWrapper {
      *   <li>支持按HTTP方法类型过滤</li>
      *   <li>支持按Controller描述过滤</li>
      *   <li>支持按类名过滤</li>
+     *   <li>支持路径参数模糊匹配，如/machiness/71可以匹配/machiness/{id}</li>
      * </ul>
      * 
      * <p>处理逻辑：</p>
@@ -445,10 +496,12 @@ public class ApiSearchDialog extends DialogWrapper {
      *   <li>使用并行流提升过滤性能</li>
      *   <li>限制结果数量避免UI卡顿</li>
      *   <li>动态显示/隐藏结果面板</li>
+     *   <li>支持路径参数模糊匹配</li>
      * </ul>
      *
      * @param keyword 过滤关键字
      * @see #scrollToVisible(int)
+     * @see #matchesPathPattern(String, String)
      */
     private void filterApis(String keyword) {
         this.listModel.clear();
@@ -486,7 +539,7 @@ public class ApiSearchDialog extends DialogWrapper {
                         
                         // 进行关键字匹配
                         return api.getName().toLowerCase().contains(lowerKeyword) ||
-                               api.getUrl().toLowerCase().contains(lowerKeyword) ||
+                               this.matchesPathPattern(api.getUrl(), lowerKeyword) ||
                                api.getMethod().toLowerCase().contains(lowerKeyword) ||
                                (api.getControllerDescription() != null &&
                                 api.getControllerDescription().toLowerCase().contains(lowerKeyword)) ||
@@ -500,8 +553,22 @@ public class ApiSearchDialog extends DialogWrapper {
                 this.listModel.addElement(api);
             }
 
-            // 根据是否有结果动态显示/隐藏结果面板
-            this.resultPanel.setVisible(!this.filteredApis.isEmpty());
+            // 显示结果面板
+            this.resultPanel.setVisible(true);
+            
+            // 使用CardLayout切换显示
+            java.awt.CardLayout cardLayout = (java.awt.CardLayout) this.resultPanel.getClientProperty("cardLayout");
+            JPanel cardPanel = (JPanel) this.resultPanel.getClientProperty("cardPanel");
+            
+            if (cardLayout != null && cardPanel != null) {
+                if (this.filteredApis.isEmpty()) {
+                    // 显示空提示
+                    cardLayout.show(cardPanel, "empty");
+                } else {
+                    // 显示结果列表
+                    cardLayout.show(cardPanel, "list");
+                }
+            }
 
             // 只有在搜索关键词改变时才选择第一个结果
             if (!this.filteredApis.isEmpty() && !keyword.equals(previousKeyword)) {
@@ -582,6 +649,69 @@ public class ApiSearchDialog extends DialogWrapper {
     private void scrollToVisible(int index) {
         if (index >= 0 && index < this.resultList.getModel().getSize()) {
             this.resultList.ensureIndexIsVisible(index);
+        }
+    }
+
+    /**
+     * 路径模糊匹配
+     * 支持将具体路径值匹配到路径参数模板，例如/machiness/71可以匹配/machiness/{id}
+     * 
+     * <p>匹配规则：</p>
+     * <ul>
+     *   <li>首先尝试直接包含匹配（不区分大小写）</li>
+     *   <li>然后尝试路径参数模糊匹配：将路径参数{xxx}替换为正则表达式，匹配任意非斜杠字符</li>
+     *   <li>支持多个路径参数的匹配</li>
+     * </ul>
+     * 
+     * <p>处理逻辑：</p>
+     * <ol>
+     *   <li>首先进行直接包含匹配</li>
+     *   <li>如果直接匹配失败，则尝试将API路径中的{xxx}替换为正则表达式\\w+</li>
+     *   <li>使用正则表达式匹配输入的关键字</li>
+     * </ol>
+     * 
+     * <p>注意事项：</p>
+     * <ul>
+     *   <li>匹配时不区分大小写</li>
+     *   <li>正则表达式需要转义特殊字符</li>
+     * </ul>
+     * 
+     * <p>示例：</p>
+     * <ul>
+     *   <li>API路径: /machiness/{id} 可以匹配关键字: /machiness/71</li>
+     *   <li>API路径: /users/{userId}/orders/{orderId} 可以匹配关键字: /users/123/orders/456</li>
+     * </ul>
+     *
+     * @param apiUrl API路径，可能包含路径参数如{id}
+     * @param keyword 搜索关键字，可能是具体的路径值
+     * @return 如果匹配则返回true，否则返回false
+     */
+    private boolean matchesPathPattern(String apiUrl, String keyword) {
+        if (apiUrl == null || keyword == null) {
+            return false;
+        }
+        
+        String lowerApiUrl = apiUrl.toLowerCase();
+        String lowerKeyword = keyword.toLowerCase();
+        
+        // 首先尝试直接包含匹配
+        if (lowerApiUrl.contains(lowerKeyword)) {
+            return true;
+        }
+        
+        // 尝试路径参数模糊匹配
+        // 将 {xxx} 替换为正则表达式 \\w+（匹配一个或多个字母数字或下划线）
+        // 但为了更通用，使用 [^/]+ 匹配任意非斜杠字符
+        String pattern = lowerApiUrl.replaceAll("\\{[^}]+\\}", "[^/]+");
+        // 转义正则表达式中的特殊字符
+        pattern = pattern.replace("/", "\\/");
+        
+        try {
+            // 使用正则表达式匹配
+            return lowerKeyword.matches(".*" + pattern + ".*");
+        } catch (Exception e) {
+            // 如果正则表达式匹配失败，返回false
+            return false;
         }
     }
 

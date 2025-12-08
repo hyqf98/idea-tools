@@ -739,11 +739,14 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             // 添加类的泛型类型参数
             List<ParameterInfo> parameters = new ArrayList<>();
             for (PsiTypeParameter typeParameter : element.getTypeParameters()) {
+                String typeName = typeParameter.getName();
+                // 类的泛型参数需要用尖括号包裹,如 <T>,以便IDEA正确识别
+                String paramName = "<" + typeName + ">";
                 ParameterInfo info = ParameterInfo.builder()
-                        .originalName(typeParameter.getName())
-                        .shortName(typeParameter.getName())
-                        .lowerFirstName(StrUtil.lowerFirst(typeParameter.getName()))
-                        .splitName(StrUtil.toUnderlineCase(typeParameter.getName()).replace("_", " "))
+                        .originalName(paramName)
+                        .shortName(paramName)
+                        .lowerFirstName(StrUtil.lowerFirst(typeName))
+                        .splitName(StrUtil.toUnderlineCase(typeName).replace("_", " "))
                         .qualifiedTypeName("parameter")
                         .simpleTypeName("parameter")
                         .build();
@@ -792,16 +795,40 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
                 // 使用新的convertClassName方法处理返回值名称划分
                 String className = returnClass != null ? returnClass.getName() : returnTypeText;
-                String splitName = StrConverter.convertClassName(className);
+                
+                // 去除泛型部分，只保留外层类型
+                // 例如：List<Q> -> List, Map<K,V> -> Map
+                String classNameWithoutGeneric = className;
+                int genericIndex = className.indexOf('<');
+                if (genericIndex > 0) {
+                    classNameWithoutGeneric = className.substring(0, genericIndex);
+                }
+                
+                // 提取泛型参数部分用于构建返回值描述
+                // 例如：List<Q> -> Q, Map<K,V> -> K,V
+                String genericPart = "";
+                if (genericIndex > 0) {
+                    int endIndex = className.lastIndexOf('>');
+                    if (endIndex > genericIndex) {
+                        genericPart = className.substring(genericIndex + 1, endIndex);
+                        // 移除空格，将泛型参数转为小写
+                        genericPart = genericPart.replaceAll("\\s+", "").toLowerCase();
+                    }
+                }
+                
+                String splitName = StrConverter.convertClassName(classNameWithoutGeneric);
+                // 构建lowerFirstName: 外层类型小写 + 泛型参数小写
+                // 例如：List<Q> -> listq, Map<K,V> -> mapkv
+                String lowerFirstName = StrUtil.lowerFirst(classNameWithoutGeneric) + genericPart;
 
                 ParameterInfo returnInfo = ParameterInfo.builder()
                         .originalName(returnTypeText)
-                        .shortName(className) // 不再需要完全限定名
-                        .simpleTypeName(className)
+                        .shortName(classNameWithoutGeneric)
+                        .simpleTypeName(classNameWithoutGeneric)
                         .qualifiedTypeName(returnClass != null && returnClass.getQualifiedName() != null ?
                                 returnClass.getQualifiedName() : returnTypeText)
-                        .lowerFirstName(StrUtil.lowerFirst(className))
-                        .splitName(splitName) // 使用新的处理方法
+                        .lowerFirstName(lowerFirstName)
+                        .splitName(splitName)
                         .build();
 
                 context.put(DocConfigService.PARAM_RETURN_TYPE, returnInfo);
@@ -815,9 +842,10 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
             // 添加方法参数信息（包括泛型类型参数和普通参数）
             List<ParameterInfo> parameters = new ArrayList<>();
 
-            // 首先添加泛型类型参数
+            // 首先添加泛型类型参数，作为第一个@param显示
             for (PsiTypeParameter typeParameter : element.getTypeParameters()) {
                 String typeName = typeParameter.getName();
+                // 泛型类型参数需要用尖括号包裹，如 <Q>
                 String paramName = "<" + typeName + ">";
                 ParameterInfo param = ParameterInfo.builder()
                         .originalName(paramName)
@@ -837,7 +865,7 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
                 ParameterInfo param = ParameterInfo.builder()
                         .originalName(paramName)
-                        .shortName(paramName) // 不再需要完全限定名
+                        .shortName(paramName)
                         .simpleTypeName(paramType)
                         .qualifiedTypeName(parameter.getType().getCanonicalText())
                         .lowerFirstName(StrUtil.lowerFirst(paramName))
