@@ -216,7 +216,6 @@
             <configurable instance="io.github.easy.tools.ui.config.CodeGenConfig" id="io.github.easy.tools.ui.config.CodeGenConfig" displayName="AI 代码生成配置"/>
         </applicationConfigurable>
         <applicationService serviceImplementation="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"/>
-        <defaultTemplatePropertiesProvider implementation="io.github.easy.tools.service.doc.DefaultTemplatePropertiesProvider"/>
         <notificationGroup id="Easy Docs Notification Group"
                            displayType="BALLOON"
                            key="notification.group.name"/>
@@ -230,6 +229,8 @@
     <applicationListeners>
         <listener class="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"
                   topic="com.intellij.ide.AppLifecycleListener"/>
+        <listener class="io.github.easy.tools.action.doc.listener.FileCreationListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </applicationListeners>
 
     <actions>
