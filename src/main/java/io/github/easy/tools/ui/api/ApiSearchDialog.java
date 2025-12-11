@@ -91,8 +91,10 @@ public class ApiSearchDialog extends DialogWrapper {
     private JPanel resultPanel;
     /** 滚动面板，为结果列表提供滚动功能 */
     private JBScrollPane scrollPane;
-    /** 提示标签，用于显示“未搜索到接口”等提示信息 */
+    /** 提示标签，用于显示"未搜索到接口"等提示信息 */
     private javax.swing.JLabel emptyLabel;
+    /** 正在搜索提示标签，用于显示搜索进行中的状态 */
+    private javax.swing.JLabel searchingLabel;
     /** 当前搜索任务，用于取消之前的搜索 */
     private Future<?> searchTask;
     /** 单线程执行器，用于异步执行搜索任务 */
@@ -157,6 +159,8 @@ public class ApiSearchDialog extends DialogWrapper {
                     if (!ApiSearchDialog.this.hasSearched) {
                         String currentText = ApiSearchDialog.this.searchField.getText();
                         if (!currentText.equals(ApiSearchDialog.this.lastSearchKeyword)) {
+                            // 显示搜索中状态
+                            ApiSearchDialog.this.showSearchingState();
                             ApiSearchDialog.this.performSearchWithDebounce(currentText);
                             ApiSearchDialog.this.hasSearched = true;
                         }
@@ -254,6 +258,13 @@ public class ApiSearchDialog extends DialogWrapper {
         this.emptyLabel.setForeground(java.awt.Color.GRAY);
         emptyPanel.add(this.emptyLabel, BorderLayout.CENTER);
         emptyPanel.setVisible(false);
+        
+        // 创建正在搜索提示面板
+        JPanel searchingPanel = new JPanel(new BorderLayout());
+        this.searchingLabel = new javax.swing.JLabel("正在搜索中...", javax.swing.SwingConstants.CENTER);
+        this.searchingLabel.setForeground(java.awt.Color.GRAY);
+        searchingPanel.add(this.searchingLabel, BorderLayout.CENTER);
+        searchingPanel.setVisible(false);
 
         // 创建结果列表面板
         JPanel listPanel = new JPanel(new BorderLayout());
@@ -305,11 +316,12 @@ public class ApiSearchDialog extends DialogWrapper {
         this.scrollPane.setPreferredSize(new Dimension(480, 100)); // 设置为5行高度
         listPanel.add(this.scrollPane, BorderLayout.CENTER);
 
-        // 使用CardLayout来切换结果列表和空提示
+        // 使用CardLayout来切换结果列表、空提示和搜索中提示
         java.awt.CardLayout cardLayout = new java.awt.CardLayout();
         JPanel cardPanel = new JPanel(cardLayout);
         cardPanel.add(listPanel, "list");
         cardPanel.add(emptyPanel, "empty");
+        cardPanel.add(searchingPanel, "searching");
         
         this.resultPanel.add(cardPanel, BorderLayout.CENTER);
         
@@ -464,6 +476,43 @@ public class ApiSearchDialog extends DialogWrapper {
         return apiInfos.stream()
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 显示搜索中状态
+     * 当用户按下回车键开始搜索时，显示“正在搜索中...”提示
+     * 
+     * <p>处理逻辑：</p>
+     * <ol>
+     *   <li>显示结果面板</li>
+     *   <li>使用CardLayout切换到搜索中状态页面</li>
+     *   <li>重新验证和重绘面板</li>
+     * </ol>
+     * 
+     * <p>注意事项：</p>
+     * <ul>
+     *   <li>此方法应在EDT线程中调用</li>
+     *   <li>搜索完成后会自动切换到结果列表或空提示</li>
+     * </ul>
+     * 
+     * @since 1.0.0
+     * @see #filterApis(String)
+     */
+    private void showSearchingState() {
+        // 显示结果面板
+        this.resultPanel.setVisible(true);
+        
+        // 使用CardLayout切换到搜索中状态
+        java.awt.CardLayout cardLayout = (java.awt.CardLayout) this.resultPanel.getClientProperty("cardLayout");
+        JPanel cardPanel = (JPanel) this.resultPanel.getClientProperty("cardPanel");
+        
+        if (cardLayout != null && cardPanel != null) {
+            cardLayout.show(cardPanel, "searching");
+        }
+        
+        // 重新验证面板布局
+        this.resultPanel.revalidate();
+        this.resultPanel.repaint();
     }
 
     /**

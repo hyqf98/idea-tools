@@ -677,6 +677,10 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
 
         /**
          * 从 pom.xml 内容中提取版本号
+         * <p>
+         * 支持解析形如 ${version} 的占位符，会从 properties 节点中读取对应的值。
+         * 如果版本号包含 ${propertyName} 格式的占位符，会递归解析直到获得最终值。
+         * </p>
          *
          * @param pomContent pom.xml 文件内容
          * @return 版本号
@@ -693,12 +697,98 @@ public class JavaCommentGenerationStrategy implements CommentGenerationStrategy 
                                 versionStart + "<version>".length(),
                                 versionEnd
                         ).trim();
+                        
+                        // 检查是否包含占位符 ${propertyName}
+                        version = this.resolvePlaceholder(version, pomContent);
                     }
                 }
             } catch (Exception e) {
                 // 如果解析失败，使用默认版本号
             }
             return version;
+        }
+        
+        /**
+         * 解析占位符，支持递归解析嵌套的占位符
+         * <p>
+         * 从 pom.xml 的 properties 节点中读取占位符对应的值。
+         * 支持形如 ${version}、${project.version}、${revision} 等格式。
+         * </p>
+         *
+         * @param value 可能包含占位符的值
+         * @param pomContent pom.xml 文件内容
+         * @return 解析后的值
+         */
+        private String resolvePlaceholder(String value, String pomContent) {
+            if (value == null || !value.contains("${")) {
+                return value;
+            }
+            
+            // 提取占位符名称，如 ${version} -> version
+            int startIdx = value.indexOf("${");
+            int endIdx = value.indexOf("}", startIdx);
+            
+            if (startIdx == -1 || endIdx == -1) {
+                return value;
+            }
+            
+            String placeholder = value.substring(startIdx + 2, endIdx);
+            
+            // 从 properties 节点中查找对应的属性值
+            String propertyValue = this.extractPropertyFromPom(pomContent, placeholder);
+            
+            if (propertyValue != null) {
+                // 替换占位符
+                String result = value.substring(0, startIdx) + propertyValue + value.substring(endIdx + 1);
+                // 递归解析，以防属性值中也包含占位符
+                return this.resolvePlaceholder(result, pomContent);
+            }
+            
+            return value;
+        }
+        
+        /**
+         * 从 pom.xml 的 properties 节点中提取指定属性的值
+         *
+         * @param pomContent pom.xml 文件内容
+         * @param propertyName 属性名称
+         * @return 属性值，如果未找到则返回 null
+         */
+        private String extractPropertyFromPom(String pomContent, String propertyName) {
+            try {
+                // 查找 <properties> 节点
+                int propertiesStart = pomContent.indexOf("<properties>");
+                int propertiesEnd = pomContent.indexOf("</properties>");
+                
+                if (propertiesStart == -1 || propertiesEnd == -1) {
+                    return null;
+                }
+                
+                // 提取 properties 节点内容
+                String propertiesContent = pomContent.substring(
+                    propertiesStart + "<properties>".length(),
+                    propertiesEnd
+                );
+                
+                // 查找指定属性的标签，如 <version>1.0.0</version>
+                String startTag = "<" + propertyName + ">";
+                String endTag = "</" + propertyName + ">";
+                
+                int propertyStart = propertiesContent.indexOf(startTag);
+                if (propertyStart != -1) {
+                    int propertyEnd = propertiesContent.indexOf(endTag, propertyStart);
+                    if (propertyEnd != -1) {
+                        return propertiesContent.substring(
+                            propertyStart + startTag.length(),
+                            propertyEnd
+                        ).trim();
+                    }
+                }
+            } catch (Exception e) {
+                // 解析失败，返回 null
+            }
+            
+            return null;
         }
     }
 
