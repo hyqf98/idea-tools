@@ -6,7 +6,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import io.github.easy.tools.entity.api.ApiInfo;
-import io.github.easy.tools.service.api.SpringMvcApiScanner;
+import io.github.easy.tools.service.api.ApiCacheService;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -68,11 +68,13 @@ import java.util.stream.Collectors;
  * @version 1.0.0
  * @since 1.0.0
  * @see ApiInfo
- * @see SpringMvcApiScanner
+ * @see ApiCacheService
  */
 public class ApiSearchDialog extends DialogWrapper {
     /** 当前IntelliJ项目实例 */
     private final Project project;
+    /** API缓存服务，提供项目级别的API数据缓存 */
+    private final ApiCacheService apiCacheService;
     /** 所有API接口列表，包含项目中的全部API信息 */
     private List<ApiInfo> allApis;
     /** API数据是否已加载完成的标志 */
@@ -123,6 +125,8 @@ public class ApiSearchDialog extends DialogWrapper {
     public ApiSearchDialog(@Nullable Project project) {
         super(project, true); // 设置为无边框模式
         this.project = project;
+        // 获取API缓存服务实例
+        this.apiCacheService = project != null ? project.getService(ApiCacheService.class) : null;
         // 延迟加载API数据，避免初始化时卡顿
         this.allApis = null;
         this.apisLoaded = false;
@@ -155,15 +159,18 @@ public class ApiSearchDialog extends DialogWrapper {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    // 如果还没有执行过搜索，则执行搜索
+                    String currentText = ApiSearchDialog.this.searchField.getText();
+                    // 如果输入内容改变了,重置搜索状态
+                    if (!currentText.equals(ApiSearchDialog.this.lastSearchKeyword)) {
+                        ApiSearchDialog.this.hasSearched = false;
+                    }
+                            
+                    // 如果还没有执行过搜索,则执行搜索
                     if (!ApiSearchDialog.this.hasSearched) {
-                        String currentText = ApiSearchDialog.this.searchField.getText();
-                        if (!currentText.equals(ApiSearchDialog.this.lastSearchKeyword)) {
-                            // 显示搜索中状态
-                            ApiSearchDialog.this.showSearchingState();
-                            ApiSearchDialog.this.performSearchWithDebounce(currentText);
-                            ApiSearchDialog.this.hasSearched = true;
-                        }
+                        // 显示搜索中状态
+                        ApiSearchDialog.this.showSearchingState();
+                        ApiSearchDialog.this.performSearchWithDebounce(currentText);
+                        ApiSearchDialog.this.hasSearched = true;
                         e.consume(); // 防止事件继续传播
                         return;
                     }
@@ -435,50 +442,6 @@ public class ApiSearchDialog extends DialogWrapper {
     }
 
     /**
-     * 加载所有API接口
-     * 扫描项目中的所有API接口并按名称排序
-     * 
-     * <p>处理逻辑：</p>
-     * <ol>
-     *   <li>检查IDE是否处于dumb模式，如果是则返回空列表</li>
-     *   <li>使用SpringMvcApiScanner扫描@RestController注解的类</li>
-     *   <li>使用SpringMvcApiScanner扫描@Controller注解的类</li>
-     *   <li>合并所有API接口并按名称排序</li>
-     * </ol>
-     * 
-     * <p>注意事项：</p>
-     * <ul>
-     *   <li>通过DumbService检查避免在索引未完成时访问索引数据</li>
-     *   <li>支持递归处理元注解和复合注解</li>
-     *   <li>按API名称不区分大小写排序</li>
-     * </ul>
-     *
-     * @return 排序后的API接口列表
-     * @see SpringMvcApiScanner
-     * @see DumbService#isDumb(Project)
-     */
-    private List<ApiInfo> loadAllApis() {
-        // 检查是否处于dumb模式（索引未完成）
-        if (DumbService.isDumb(this.project)) {
-            return new ArrayList<>(); // 返回空列表而不是抛出异常
-        }
-        
-        SpringMvcApiScanner scanner = new SpringMvcApiScanner(this.project);
-        List<ApiInfo> apiInfos = new ArrayList<>();
-
-        // 查找所有带有@RestController注解的类（包括通过元注解间接标注的类）
-        apiInfos.addAll(scanner.findControllerClasses("org.springframework.web.bind.annotation.RestController"));
-
-        // 查找所有带有@Controller注解的类（包括通过元注解间接标注的类）
-        apiInfos.addAll(scanner.findControllerClasses("org.springframework.stereotype.Controller"));
-
-        // 按名称排序
-        return apiInfos.stream()
-                .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
-                .collect(Collectors.toList());
-    }
-
-    /**
      * 显示搜索中状态
      * 当用户按下回车键开始搜索时，显示“正在搜索中...”提示
      * 
@@ -704,35 +667,42 @@ public class ApiSearchDialog extends DialogWrapper {
     /**
      * 路径模糊匹配
      * 支持将具体路径值匹配到路径参数模板，例如/machiness/71可以匹配/machiness/{id}
+     * 支持查询参数的匹配,例如/api/demo/query?type=1可以匹配/demo/query
+     * 支持部分路径匹配,例如/api/demo/query可以匹配/demo/query
      * 
      * <p>匹配规则：</p>
      * <ul>
      *   <li>首先尝试直接包含匹配（不区分大小写）</li>
+     *   <li>去除查询参数后进行匹配</li>
+     *   <li>支持部分路径匹配：关键字可以包含额外的路径前缀</li>
      *   <li>然后尝试路径参数模糊匹配：将路径参数{xxx}替换为正则表达式，匹配任意非斜杠字符</li>
-     *   <li>支持多个路径参数的匹配</li>
      * </ul>
      * 
      * <p>处理逻辑：</p>
      * <ol>
-     *   <li>首先进行直接包含匹配</li>
-     *   <li>如果直接匹配失败，则尝试将API路径中的{xxx}替换为正则表达式\\w+</li>
-     *   <li>使用正则表达式匹配输入的关键字</li>
+     *   <li>去除关键字中的查询参数（?及其后面的内容）</li>
+     *   <li>首先进行直接包含匹配：API路径包含关键字</li>
+     *   <li>尝试反向匹配：关键字包含API路径（支持带前缀的搜索）</li>
+     *   <li>如果API路径包含路径参数{xxx}，则将其替换为正则表达式进行匹配</li>
      * </ol>
      * 
      * <p>注意事项：</p>
      * <ul>
      *   <li>匹配时不区分大小写</li>
      *   <li>正则表达式需要转义特殊字符</li>
+     *   <li>支持带查询参数的URL匹配</li>
      * </ul>
      * 
      * <p>示例：</p>
      * <ul>
      *   <li>API路径: /machiness/{id} 可以匹配关键字: /machiness/71</li>
      *   <li>API路径: /users/{userId}/orders/{orderId} 可以匹配关键字: /users/123/orders/456</li>
+     *   <li>API路径: /demo/query 可以匹配关键字: /api/demo/query</li>
+     *   <li>API路径: /demo/query 可以匹配关键字: /api/demo/query?type=1</li>
      * </ul>
      *
      * @param apiUrl API路径，可能包含路径参数如{id}
-     * @param keyword 搜索关键字，可能是具体的路径值
+     * @param keyword 搜索关键字，可能是具体的路径值，可能包含查询参数
      * @return 如果匹配则返回true，否则返回false
      */
     private boolean matchesPathPattern(String apiUrl, String keyword) {
@@ -743,25 +713,39 @@ public class ApiSearchDialog extends DialogWrapper {
         String lowerApiUrl = apiUrl.toLowerCase();
         String lowerKeyword = keyword.toLowerCase();
         
-        // 首先尝试直接包含匹配
+        // 去除查询参数（?及其后面的内容）
+        if (lowerKeyword.contains("?")) {
+            lowerKeyword = lowerKeyword.substring(0, lowerKeyword.indexOf("?"));
+        }
+        
+        // 首先尝试直接包含匹配：API路径包含关键字
         if (lowerApiUrl.contains(lowerKeyword)) {
             return true;
         }
         
-        // 尝试路径参数模糊匹配
-        // 将 {xxx} 替换为正则表达式 \\w+（匹配一个或多个字母数字或下划线）
-        // 但为了更通用，使用 [^/]+ 匹配任意非斜杠字符
-        String pattern = lowerApiUrl.replaceAll("\\{[^}]+\\}", "[^/]+");
-        // 转义正则表达式中的特殊字符
-        pattern = pattern.replace("/", "\\/");
-        
-        try {
-            // 使用正则表达式匹配
-            return lowerKeyword.matches(".*" + pattern + ".*");
-        } catch (Exception e) {
-            // 如果正则表达式匹配失败，返回false
-            return false;
+        // 尝试反向匹配：关键字包含API路径
+        // 例如：API路径为/demo/query，关键字为/api/demo/query
+        if (lowerKeyword.contains(lowerApiUrl)) {
+            return true;
         }
+        
+        // 尝试路径参数模糊匹配（仅当API路径包含{xxx}的情况）
+        if (lowerApiUrl.contains("{")) {
+            try {
+                // 将 {xxx} 替换为正则表达式 [^/]+ 匹配任意非斜杠字符
+                String pattern = lowerApiUrl.replaceAll("\\{[^}]+\\}", "[^/]+");
+                // 转义正则表达式中的特殊字符
+                pattern = pattern.replace("/", "\\/");
+                // 使用正则表达式匹配：关键字包含API路径模式
+                if (lowerKeyword.matches(".*" + pattern + ".*")) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // 如果正则表达式匹配失败，忽略此匹配方式
+            }
+        }
+        
+        return false;
     }
 
     /**
@@ -819,13 +803,13 @@ public class ApiSearchDialog extends DialogWrapper {
 
     /**
      * 延迟加载所有API数据
-     * 在后台线程中异步加载所有API接口数据，避免阻塞UI线程
+     * 使用缓存服务加载API接口数据，避免重复扫描提升性能
      * 
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>检查IDE是否处于dumb模式，如果是则等待索引完成</li>
      *   <li>使用线程池提交加载任务</li>
-     *   <li>在后台线程中扫描所有API接口</li>
+     *   <li>从缓存服务获取API数据（首次访问时会自动扫描）</li>
      *   <li>在EDT线程中更新数据字段和加载状态</li>
      * </ol>
      * 
@@ -834,9 +818,10 @@ public class ApiSearchDialog extends DialogWrapper {
      *   <li>通过DumbService检查避免在索引未完成时访问索引数据</li>
      *   <li>使用runWhenSmart方法确保在索引完成后执行加载操作</li>
      *   <li>在EDT线程中更新UI相关字段</li>
+     *   <li>使用缓存服务避免重复扫描，显著提升性能</li>
      * </ul>
      *
-     * @see #loadAllApis()
+     * @see ApiCacheService#getCachedApis()
      * @see DumbService#isDumb(Project)
      * @see DumbService#runWhenSmart(Runnable)
      */
@@ -848,11 +833,16 @@ public class ApiSearchDialog extends DialogWrapper {
             return;
         }
         
+        // 检查缓存服务是否可用
+        if (this.apiCacheService == null) {
+            return;
+        }
+        
         try {
             this.executorService.submit(() -> {
                 try {
-                    // 延迟加载API数据，避免阻塞UI线程
-                    List<ApiInfo> apis = this.loadAllApis();
+                    // 从缓存服务获取API数据（首次访问时会自动扫描）
+                    List<ApiInfo> apis = this.apiCacheService.getCachedApis();
                     SwingUtilities.invokeLater(() -> {
                         // 直接更新allApis字段
                         this.allApis = apis;

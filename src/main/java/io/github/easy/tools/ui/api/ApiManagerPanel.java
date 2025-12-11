@@ -6,7 +6,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.treeStructure.Tree;
 import io.github.easy.tools.entity.api.ApiInfo;
-import io.github.easy.tools.service.api.SpringMvcApiScanner;
+import io.github.easy.tools.service.api.ApiCacheService;
 
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -58,11 +58,13 @@ import java.util.Map;
  * @date 2025.11.18 15:48
  * @since 1.0.0
  * @see ApiInfo
- * @see SpringMvcApiScanner
+ * @see ApiCacheService
  */
 public class ApiManagerPanel extends JPanel {
     /** 当前IntelliJ项目实例 */
     private final Project project;
+    /** API缓存服务，提供项目级别的API数据缓存 */
+    private final ApiCacheService apiCacheService;
     /** API树形组件，用于展示API接口的层次结构 */
     private JTree apiTree;
     /** 树模型，管理API树的数据结构 */
@@ -191,6 +193,7 @@ public class ApiManagerPanel extends JPanel {
      */
     public ApiManagerPanel(Project project) {
         this.project = project;
+        this.apiCacheService = project.getService(ApiCacheService.class);
         this.apiList = new ArrayList<>();
         this.filteredApiList = new ArrayList<>();
         this.apiTestPanelComponent = new ApiTestPanel(project);
@@ -341,25 +344,26 @@ public class ApiManagerPanel extends JPanel {
 
     /**
      * 刷新API列表
-     * 扫描项目中的所有API接口并更新树形结构
+     * 使用缓存服务重新加载API接口并更新树形结构
      *
      * <p>处理逻辑：</p>
      * <ol>
      *   <li>检查IDE是否处于dumb模式，如果是则等待索引完成</li>
      *   <li>清空现有数据和树结构</li>
-     *   <li>使用SpringMvcApiScanner扫描@RestController和@Controller注解的类</li>
-     *   <li>使用SwingWorker在后台线程执行扫描，避免阻塞UI</li>
-     *   <li>逐步更新UI显示扫描结果</li>
+     *   <li>清除缓存并重新加载API数据</li>
+     *   <li>使用SwingWorker在后台线程执行加载，避免阻塞UI</li>
+     *   <li>更新UI显示加载结果</li>
      * </ol>
      *
      * <p>注意事项：</p>
      * <ul>
      *   <li>使用SwingWorker确保后台扫描不会阻塞UI线程</li>
      *   <li>通过DumbService检查避免在索引未完成时访问索引数据</li>
-     *   <li>避免重复添加相同的API接口</li>
+     *   <li>使用缓存服务避免重复扫描，显著提升性能</li>
+     *   <li>刷新时会清除缓存以获取最新数据</li>
      * </ul>
      *
-     * @see SpringMvcApiScanner
+     * @see ApiCacheService#reloadApis()
      * @see SwingWorker
      * @see DumbService
      */
@@ -380,64 +384,30 @@ public class ApiManagerPanel extends JPanel {
         root.removeAllChildren();
         this.treeModel.reload();
 
-        // 创建新的扫描器
-        SpringMvcApiScanner scanner = new SpringMvcApiScanner(this.project);
-
-        // 使用SwingWorker进行后台扫描，逐步更新UI
-        SwingWorker<Void, ApiInfo> worker = new SwingWorker<Void, ApiInfo>() {
+        // 使用SwingWorker进行后台加载
+        SwingWorker<List<ApiInfo>, Void> worker = new SwingWorker<List<ApiInfo>, Void>() {
             @Override
-            protected Void doInBackground() throws Exception {
-                // 扫描@RestController注解的类
-                List<ApiInfo> restControllerApis = scanner.findControllerClasses("org.springframework.web.bind.annotation.RestController");
-                for (ApiInfo apiInfo : restControllerApis) {
-                    this.publish(apiInfo);
-                }
-
-                // 扫描@Controller注解的类
-                List<ApiInfo> controllerApis = scanner.findControllerClasses("org.springframework.stereotype.Controller");
-                for (ApiInfo apiInfo : controllerApis) {
-                    this.publish(apiInfo);
-                }
-
-                return null;
-            }
-
-            @Override
-            protected void process(List<ApiInfo> chunks) {
-                // 在EDT线程中更新UI
-                for (ApiInfo apiInfo : chunks) {
-                    // 避免重复添加
-                    boolean alreadyExists = false;
-                    for (ApiInfo existing : ApiManagerPanel.this.apiList) {
-                        if (existing.getClassName() != null && existing.getClassName().equals(apiInfo.getClassName()) &&
-                            existing.getMethodName() != null && existing.getMethodName().equals(apiInfo.getMethodName())) {
-                            alreadyExists = true;
-                            break;
-                        }
-                    }
-
-                    if (!alreadyExists) {
-                        ApiManagerPanel.this.apiList.add(apiInfo);
-                        // 如果当前没有过滤条件，则添加到过滤列表中
-                        if (ApiManagerPanel.this.searchField.getText().trim().isEmpty()) {
-                            ApiManagerPanel.this.filteredApiList.add(apiInfo);
-                        } else {
-                            // 根据搜索条件过滤
-                            ApiManagerPanel.this.filterApiList(ApiManagerPanel.this.searchField.getText());
-                        }
-                    }
-                }
-
-                // 更新树结构
-                ApiManagerPanel.this.updateTreeStructure();
+            protected List<ApiInfo> doInBackground() throws Exception {
+                // 从缓存服务重新加载API数据（会清除缓存）
+                return ApiManagerPanel.this.apiCacheService.reloadApis();
             }
 
             @Override
             protected void done() {
-                // 扫描完成后的处理
                 try {
-                    this.get(); // 检查是否有异常
-                    // 最后一次更新树结构
+                    List<ApiInfo> apis = this.get();
+                    // 在EDT线程中更新UI
+                    ApiManagerPanel.this.apiList.addAll(apis);
+                    
+                    // 如果当前没有过滤条件，则显示所有API
+                    if (ApiManagerPanel.this.searchField.getText().trim().isEmpty()) {
+                        ApiManagerPanel.this.filteredApiList.addAll(apis);
+                    } else {
+                        // 根据搜索条件过滤
+                        ApiManagerPanel.this.filterApiList(ApiManagerPanel.this.searchField.getText());
+                    }
+                    
+                    // 更新树结构
                     ApiManagerPanel.this.updateTreeStructure();
                 } catch (Exception e) {
                     e.printStackTrace();
