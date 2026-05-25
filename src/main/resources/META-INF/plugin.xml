@@ -1,16 +1,16 @@
 <idea-plugin>
     <!-- Plugin name and description -->
-    <name>Easy Tools</name>
-    <id>io.github.easy.tools</id>
+    <name>IdeaTools</name>
+    <id>io.github.ideatools</id>
     <version>1.0.1</version>
 
     <!-- Vendor information -->
-    <vendor email="iamxiaohaijun@gmail.com" url="https://github.com/easy-tools">Easy Tools</vendor>
+    <vendor email="iamxiaohaijun@gmail.com" url="https://github.com/hyqf98/IdeaTools">IdeaTools</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-      <h2>Easy Tools - IntelliJ IDEA Productivity Plugin</h2>
+      <h2>IdeaTools - IntelliJ IDEA Productivity Plugin</h2>
       <p>A comprehensive productivity plugin for Java developers that enhances development experience with JavaDoc generation, AI integration, API management, and MyBatis enhancement.</p>
 
       <h3>Core Features</h3>
@@ -58,46 +58,46 @@
     <!-- Extension points -->
     <extensions defaultExtensionNs="com.intellij">
         <!-- 注册项目视图节点装饰器，用于在文件列表中显示注释 -->
-        <projectViewNodeDecorator implementation="io.github.easy.tools.comment.FileCommentDecorator"/>
+        <projectViewNodeDecorator implementation="io.github.ideatools.comment.FileCommentDecorator"/>
 
         <!-- 注册MyBatis Mapper接口的行标记提供者，用于显示导航图标 -->
         <codeInsight.lineMarkerProvider language="JAVA"
-                                        implementationClass="io.github.easy.tools.ui.mybatis.MapperLineMarkerProvider"/>
+                                        implementationClass="io.github.ideatools.ui.mybatis.MapperLineMarkerProvider"/>
 
         <!-- 注册MyBatis XML SQL标签的行标记提供者，用于从 XML 跳转到 Mapper 接口方法 -->
         <codeInsight.lineMarkerProvider language="XML"
-                                        implementationClass="io.github.easy.tools.ui.mybatis.XmlSqlTagLineMarkerProvider"/>
+                                        implementationClass="io.github.ideatools.ui.mybatis.XmlSqlTagLineMarkerProvider"/>
 
         <!-- 注册MyBatis XML文件注解器，用于语法高亮 -->
         <annotator language="XML"
-                   implementationClass="io.github.easy.tools.ui.mybatis.MyBatisXmlAnnotator"/>
+                   implementationClass="io.github.ideatools.ui.mybatis.MyBatisXmlAnnotator"/>
 
         <!-- 注册MyBatis XML参数引用贡献者，用于参数到Java字段的引用跳转 -->
         <psi.referenceContributor language="XML"
-                                  implementation="io.github.easy.tools.service.mybatis.MyBatisParamReferenceContributor"/>
+                                  implementation="io.github.ideatools.service.mybatis.MyBatisParamReferenceContributor"/>
 
         <!-- 注册MyBatis XML代码补全贡献者,用于参数智能提示 -->
         <!-- 不指定language以支持语言注入场景(如XML中的SQL注入为MySQL) -->
         <completion.contributor language="any"
                                 order="first"
-                                id="io.github.easy.tools.mybatis.completion"
-                                implementationClass="io.github.easy.tools.service.mybatis.MyBatisXmlCompletionContributor"/>
+                                id="io.github.ideatools.mybatis.completion"
+                                implementationClass="io.github.ideatools.service.mybatis.MyBatisXmlCompletionContributor"/>
 
         <!-- 注册MyBatis意图操作，用于Ctrl+回车菜单 -->
         <intentionAction>
-            <className>io.github.easy.tools.intention.MyBatisSelectIntention</className>
+            <className>io.github.ideatools.intention.MyBatisSelectIntention</className>
             <category>MyBatis</category>
         </intentionAction>
         <intentionAction>
-            <className>io.github.easy.tools.intention.MyBatisInsertIntention</className>
+            <className>io.github.ideatools.intention.MyBatisInsertIntention</className>
             <category>MyBatis</category>
         </intentionAction>
         <intentionAction>
-            <className>io.github.easy.tools.intention.MyBatisUpdateIntention</className>
+            <className>io.github.ideatools.intention.MyBatisUpdateIntention</className>
             <category>MyBatis</category>
         </intentionAction>
         <intentionAction>
-            <className>io.github.easy.tools.intention.MyBatisDeleteIntention</className>
+            <className>io.github.ideatools.intention.MyBatisDeleteIntention</className>
             <category>MyBatis</category>
         </intentionAction>
     </extensions>
@@ -136,42 +136,42 @@
     ]]></change-notes>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="io.github.easy.tools.ui.config.FeatureToggleService"/>
-        <applicationService serviceImplementation="io.github.easy.tools.ui.config.LLMConfigState"/>
-        <applicationService serviceImplementation="io.github.easy.tools.service.llm.LLMService"/>
-        <applicationService serviceImplementation="io.github.easy.tools.ui.config.DocConfigService"/>
-        <applicationService serviceImplementation="io.github.easy.tools.ui.config.CodeGenConfigState"/>
+        <applicationService serviceImplementation="io.github.ideatools.ui.config.FeatureToggleService"/>
+        <applicationService serviceImplementation="io.github.ideatools.ui.config.LLMConfigState"/>
+        <applicationService serviceImplementation="io.github.ideatools.service.llm.LLMService"/>
+        <applicationService serviceImplementation="io.github.ideatools.ui.config.DocConfigService"/>
+        <applicationService serviceImplementation="io.github.ideatools.ui.config.CodeGenConfigState"/>
         <applicationConfigurable
                 parentId="other"
-                instance="io.github.easy.tools.ui.config.EasyConfig"
-                id="io.github.easy.tools.ui.config.EasyConfig"
+                instance="io.github.ideatools.ui.config.EasyConfig"
+                id="io.github.ideatools.ui.config.EasyConfig"
                 displayName="Easy Config">
-            <configurable instance="io.github.easy.tools.ui.config.FeatureToggleConfig"
-                          id="io.github.easy.tools.ui.config.EasyConfig.01.FeatureToggle"
+            <configurable instance="io.github.ideatools.ui.config.FeatureToggleConfig"
+                          id="io.github.ideatools.ui.config.EasyConfig.01.FeatureToggle"
                           displayName="功能开关"
                           groupWeight="40"/>
-            <configurable instance="io.github.easy.tools.ui.config.LLMConfig"
-                          id="io.github.easy.tools.ui.config.EasyConfig.02.LLMConfig"
+            <configurable instance="io.github.ideatools.ui.config.LLMConfig"
+                          id="io.github.ideatools.ui.config.EasyConfig.02.LLMConfig"
                           displayName="大模型配置"
                           groupWeight="30"/>
-            <configurable instance="io.github.easy.tools.ui.config.CodeGenConfig"
-                          id="io.github.easy.tools.ui.config.EasyConfig.04.CodeGenConfig"
+            <configurable instance="io.github.ideatools.ui.config.CodeGenConfig"
+                          id="io.github.ideatools.ui.config.EasyConfig.04.CodeGenConfig"
                           displayName="AI代码生成"
                           groupWeight="10"/>
         </applicationConfigurable>
         <!-- HTTP接口测试配置 - 项目级别 -->
-        <projectConfigurable parentId="io.github.easy.tools.ui.config.EasyConfig"
-                             instance="io.github.easy.tools.ui.config.ApiTestConfig"
-                             id="io.github.easy.tools.ui.config.EasyConfig.05.ApiTestConfig"
+        <projectConfigurable parentId="io.github.ideatools.ui.config.EasyConfig"
+                             instance="io.github.ideatools.ui.config.ApiTestConfig"
+                             id="io.github.ideatools.ui.config.EasyConfig.05.ApiTestConfig"
                              displayName="HTTP接口测试"
                              groupWeight="5"/>
         <!-- Java注释配置改为项目级别配置 -->
-        <projectConfigurable parentId="io.github.easy.tools.ui.config.EasyConfig"
-                             instance="io.github.easy.tools.ui.config.DocConfig"
-                             id="io.github.easy.tools.ui.config.EasyConfig.03.DocConfig"
+        <projectConfigurable parentId="io.github.ideatools.ui.config.EasyConfig"
+                             instance="io.github.ideatools.ui.config.DocConfig"
+                             id="io.github.ideatools.ui.config.EasyConfig.03.DocConfig"
                              displayName="Java注释配置"
                              groupWeight="20"/>
-        <applicationService serviceImplementation="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"/>
+        <applicationService serviceImplementation="io.github.ideatools.action.doc.listener.FileSaveListenerManager"/>
         <notificationGroup id="Easy Docs Notification Group"
                            displayType="BALLOON"
                            key="notification.group.name"/>
@@ -179,47 +179,47 @@
 
 
     <applicationListeners>
-        <listener class="io.github.easy.tools.action.doc.listener.FileSaveListenerManager"
+        <listener class="io.github.ideatools.action.doc.listener.FileSaveListenerManager"
                   topic="com.intellij.ide.AppLifecycleListener"/>
-        <listener class="io.github.easy.tools.action.doc.listener.FileCreationListener"
+        <listener class="io.github.ideatools.action.doc.listener.FileCreationListener"
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </applicationListeners>
 
     <!-- 项目启动活动 -->
     <extensions defaultExtensionNs="com.intellij">
         <!-- MyBatis Mapper XML文件扫描和监听 -->
-        <postStartupActivity implementation="io.github.easy.tools.listener.MapperXmlStartupActivity"/>
+        <postStartupActivity implementation="io.github.ideatools.listener.MapperXmlStartupActivity"/>
     </extensions>
 
     <actions>
         <group id="JavaDocMenus" popup="true" description="Java Doc" text="Java Doc">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <action id="GenerateFileCommentAction"
-                    class="io.github.easy.tools.action.doc.actions.GenerateFileCommentAction"
+                    class="io.github.ideatools.action.doc.actions.GenerateFileCommentAction"
                     text="当前文件生成注释"
                     description="当前文件生成注释">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt shift J"/>
             </action>
             <action id="GenerateElementCommentAction"
-                    class="io.github.easy.tools.action.doc.actions.GenerateElementCommentAction"
+                    class="io.github.ideatools.action.doc.actions.GenerateElementCommentAction"
                     text="当前元素生成注释"
                     description="当前元素生成注释">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt J"/>
             </action>
             <action id="GenerateFileCommentByAiAction"
-                    class="io.github.easy.tools.action.doc.actions.GenerateFileCommentByAiAction"
+                    class="io.github.ideatools.action.doc.actions.GenerateFileCommentByAiAction"
                     text="当前文件生成注释(AI)"
                     description="使用AI为当前文件生成注释"/>
             <action id="GenerateElementCommentByAiAction"
-                    class="io.github.easy.tools.action.doc.actions.GenerateElementCommentByAiAction"
+                    class="io.github.ideatools.action.doc.actions.GenerateElementCommentByAiAction"
                     text="当前元素生成注释(AI)"
                     description="使用AI为当前元素生成注释"/>
             <action id="RemoveElementCommentsAction"
-                    class="io.github.easy.tools.action.doc.actions.RemoveElementCommentsAction"
+                    class="io.github.ideatools.action.doc.actions.RemoveElementCommentsAction"
                     text="删除当前元素注释"
                     description="删除当前元素注释"/>
             <action id="RemoveFileCommentsAction"
-                    class="io.github.easy.tools.action.doc.actions.RemoveFileCommentsAction"
+                    class="io.github.ideatools.action.doc.actions.RemoveFileCommentsAction"
                     text="删除当前文件注释"
                     description="删除当前文件注释"/>
         </group>
@@ -227,19 +227,19 @@
         <group id="MyBatisActionGroup" text="MyBatis Action" description="MyBatis SQL Tag Generation" popup="true">
             <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="JavaDocMenus"/>
             <action id="CreateSelectTagAction"
-                    class="io.github.easy.tools.action.mybatis.CreateSelectTagAction"
+                    class="io.github.ideatools.action.mybatis.CreateSelectTagAction"
                     text="创建Select方法"
                     description="在XML中为选中的Mapper方法创建select标签"/>
             <action id="CreateInsertTagAction"
-                    class="io.github.easy.tools.action.mybatis.CreateInsertTagAction"
+                    class="io.github.ideatools.action.mybatis.CreateInsertTagAction"
                     text="创建Insert方法"
                     description="在XML中为选中的Mapper方法创建insert标签"/>
             <action id="CreateUpdateTagAction"
-                    class="io.github.easy.tools.action.mybatis.CreateUpdateTagAction"
+                    class="io.github.ideatools.action.mybatis.CreateUpdateTagAction"
                     text="创建Update方法"
                     description="在XML中为选中的Mapper方法创建update标签"/>
             <action id="CreateDeleteTagAction"
-                    class="io.github.easy.tools.action.mybatis.CreateDeleteTagAction"
+                    class="io.github.ideatools.action.mybatis.CreateDeleteTagAction"
                     text="创建Delete方法"
                     description="在XML中为选中的Mapper方法创建delete标签"/>
         </group>
@@ -247,7 +247,7 @@
         <group id="PropertyConversionGroup" text="属性转换" description="Property Conversion">
             <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="MyBatisActionGroup"/>
             <action id="PropertyConversionAction"
-                    class="io.github.easy.tools.action.conversion.PropertyConversionAction"
+                    class="io.github.ideatools.action.conversion.PropertyConversionAction"
                     text="转换选中属性"
                     description="将选中的属性名转换为不同格式">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift U"/>
@@ -256,7 +256,7 @@
 
         <!-- API搜索动作 -->
         <action id="ApiSearchAction"
-                class="io.github.easy.tools.action.api.ApiSearchAction"
+                class="io.github.ideatools.action.api.ApiSearchAction"
                 text="API搜索"
                 description="搜索并跳转到API接口">
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl BACK_SLASH"/>
@@ -264,7 +264,7 @@
 
         <!-- AI代码生成动作 -->
         <action id="GenerateCodeByAiAction"
-                class="io.github.easy.tools.action.codegen.GenerateCodeByAiAction"
+                class="io.github.ideatools.action.codegen.GenerateCodeByAiAction"
                 text="AI代码生成"
                 description="使用AI根据数据库表结构生成代码">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
