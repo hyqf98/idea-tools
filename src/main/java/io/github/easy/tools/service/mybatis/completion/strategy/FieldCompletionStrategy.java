@@ -485,7 +485,7 @@ public class FieldCompletionStrategy implements CompletionStrategy {
             // 此时IntelliJ已经插入了字段名，我们需要：
             // 1. 删除IntelliJ插入的字段名（已完成）
             // 2. 删除前面的前缀
-            // 3. 插入完整的 #{完整路径}
+            // 3. 插入完整路径，取值由 .value 显式触发
 
             // 检查是否在#{}表达式内
             boolean isInExpression = this.context.getExpressionStartOffset() >= 0;
@@ -555,37 +555,25 @@ public class FieldCompletionStrategy implements CompletionStrategy {
         private void handleInsertInExpression(@NotNull Document document,
                                              @NotNull Editor editor,
                                              int currentOffset) {
-            int exprStart = this.context.getExpressionStartOffset();
-            int exprEnd = this.context.getExpressionEndOffset();
             int documentLength = document.getTextLength();
+            String currentInput = this.context.getCurrentText();
 
-            // 边界检查
-            if (exprStart < 0 || exprStart > documentLength) {
+            int prefixStart = currentOffset - currentInput.length();
+            if (prefixStart < 0) {
+                prefixStart = 0;
+            }
+
+            if (prefixStart > documentLength || currentOffset > documentLength) {
                 this.insertSimpleExpression(document, editor, currentOffset);
                 return;
             }
 
-            // 计算需要删除的范围
-            // 从表达式开始位置(#{)到当前位置
-            int deleteStart = exprStart;
-            int deleteEnd = currentOffset;
-
-            // 如果找到了表达式结束位置(}),也删除它
-            if (exprEnd >= 0 && exprEnd < documentLength && exprEnd >= currentOffset) {
-                deleteEnd = exprEnd + 1;
+            if (prefixStart < currentOffset) {
+                document.deleteString(prefixStart, currentOffset);
             }
 
-            // 删除整个表达式内容（包括#{}）
-            if (deleteStart < deleteEnd && deleteEnd <= documentLength) {
-                document.deleteString(deleteStart, deleteEnd);
-            }
-
-            // 插入新的完整表达式
-            String newExpression = "#{" + this.fullPath + "}";
-            document.insertString(deleteStart, newExpression);
-
-            // 移动光标到表达式结束位置
-            editor.getCaretModel().moveToOffset(deleteStart + newExpression.length());
+            document.insertString(prefixStart, this.fullPath);
+            editor.getCaretModel().moveToOffset(prefixStart + this.fullPath.length());
         }
 
         /**
@@ -620,16 +608,14 @@ public class FieldCompletionStrategy implements CompletionStrategy {
                 document.deleteString(prefixStart, currentOffset);
             }
 
-            // 插入新的完整表达式
-            String newExpression = "#{" + this.fullPath + "}";
-            document.insertString(prefixStart, newExpression);
+            // 插入完整路径，取值由 .value 显式触发
+            document.insertString(prefixStart, this.fullPath);
 
-            // 移动光标到表达式结束位置
-            editor.getCaretModel().moveToOffset(prefixStart + newExpression.length());
+            editor.getCaretModel().moveToOffset(prefixStart + this.fullPath.length());
         }
 
         /**
-         * 简单模式插入表达式(当offset计算出错时的回退方案)
+         * 简单模式插入完整路径(当offset计算出错时的回退方案)
          *
          * @param document document
          * @param editor editor
@@ -639,9 +625,8 @@ public class FieldCompletionStrategy implements CompletionStrategy {
         private void insertSimpleExpression(@NotNull Document document,
                                            @NotNull Editor editor,
                                            int offset) {
-            String newExpression = "#{" + this.fullPath + "}";
-            document.insertString(offset, newExpression);
-            editor.getCaretModel().moveToOffset(offset + newExpression.length());
+            document.insertString(offset, this.fullPath);
+            editor.getCaretModel().moveToOffset(offset + this.fullPath.length());
         }
     }
 }

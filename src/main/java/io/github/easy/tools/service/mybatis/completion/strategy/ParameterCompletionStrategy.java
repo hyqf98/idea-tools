@@ -62,29 +62,33 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
                 MyBatisExpressionParser.parseForCompletion(context.getCurrentText());
 
         String currentInput = parseResult.getCurrentInput();
-        PsiParameter[] parameters = method.getParameterList().getParameters();
+        PsiParameter[] parameters = method.getParameterList()
+                .getParameters();
 
         // 使用自定义前缀匹配器，匹配参数名
-        CompletionResultSet paramResult = result.withPrefixMatcher(currentInput);
+        // 使用原始文本作为前缀匹配器，确保正确匹配用户输入的字符
+        // 例如：用户输入"q"，应该能匹配到"query"，而不会导致重复
+        CompletionResultSet paramResult = result.withPrefixMatcher(context.getCurrentText());
 
         for (PsiParameter parameter : parameters) {
             String paramName = parameter.getName();
 
-            // 获取@Param注解的值
+            // 获取 @Param 注解的值
             String annotationValue = MyBatisUtils.getParamAnnotationValue(parameter);
             if (StringUtil.isNotEmpty(annotationValue)) {
                 paramName = annotationValue;
             }
 
             // 尝试推断实际类型（支持泛型参数推断）
-            String typeName = parameter.getType().getPresentableText();
-            // 优先使用带context的重载方法，这样可以从XML的parameterType属性获取类型
-            // 这对于泛型方法参数特别重要，因为可以通过parameterType明确指定实际类型
+            String typeName = parameter.getType()
+                    .getPresentableText();
+            // 优先使用基于 context 的推断方法，这样可以从 XML 的 parameterType 属性获取类型
+            // 这对泛型方法参数尤其重要，因为可以通过 parameterType 明确指定实际类型
             PsiClass resolvedClass = MyBatisUtils.resolveRootParamClass(
                     context.getPosition(),
                     parseResult.getRootParam()
             );
-            if (resolvedClass ==  null) {
+            if (resolvedClass == null) {
                 resolvedClass = MyBatisUtils.resolveRootParamClass(parameter, paramName);
             }
             if (resolvedClass != null) {
@@ -93,11 +97,11 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
                     // 如果推断出了更具体的类型，使用推断后的类型名
                     typeName = resolvedTypeName;
 
-                    // 如果有完整的限定名，尝试使用简短形式
+                    // 如果有完整的限定名，尝试使用短类名显示
                     String qualifiedName = resolvedClass.getQualifiedName();
                     if (qualifiedName != null) {
                         typeName = qualifiedName;
-                        // 显示简短类名
+                        // 显示短类名
                         int lastDot = typeName.lastIndexOf('.');
                         if (lastDot >= 0) {
                             typeName = typeName.substring(lastDot + 1);
@@ -113,9 +117,9 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
                     .withIcon(AllIcons.Nodes.Parameter)
                     .withTypeText(typeName)
                     .withTailText(" " + typeName, true)
-                    .withInsertHandler(new ParameterInsertHandler(isPrimitive, context.isInXmlAttribute(), context));
+                    .withInsertHandler(new ParameterInsertHandler(isPrimitive, context.isInXmlAttribute()));
 
-            // 为补全项添加高优先级,确保在其他插件之前显示
+            // 为补全项添加高优先级，确保在其他插件之前显示
             LookupElement prioritized = PrioritizedLookupElement.withPriority(builder, 100.0);
             paramResult.addElement(prioritized);
         }
@@ -125,7 +129,7 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
      * 判断是否支持该上下文
      *
      * @param context 补全上下文
-     * @return true如果支持
+     * @return 如果支持则返回 true
      * @since 1.0.0
      */
     @Override
@@ -137,11 +141,12 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
      * 判断是否为基本数据类型
      *
      * @param typeName 类型名称
-     * @return true如果是基本类型
+     * @return 如果是基本类型则返回 true
      * @since 1.0.0
      */
     private boolean isPrimitiveType(@NotNull String typeName) {
-        String simpleType = typeName.replaceAll("<.*>", "").trim();
+        String simpleType = typeName.replaceAll("<.*>", "")
+                .trim();
         int lastDot = simpleType.lastIndexOf('.');
         if (lastDot >= 0) {
             simpleType = simpleType.substring(lastDot + 1);
@@ -167,23 +172,17 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
          * is in xml attribute
          */
         private final boolean isInXmlAttribute;
-        /**
-         * 补全上下文
-         */
-        private final CompletionContext context;
 
         /**
          * Parameter Insert Handler
          *
          * @param isPrimitiveType is primitive type
          * @param isInXmlAttribute is in xml attribute
-         * @param context 补全上下文
          * @since 1.0.0
          */
-        public ParameterInsertHandler(boolean isPrimitiveType, boolean isInXmlAttribute, CompletionContext context) {
+        public ParameterInsertHandler(boolean isPrimitiveType, boolean isInXmlAttribute) {
             this.isPrimitiveType = isPrimitiveType;
             this.isInXmlAttribute = isInXmlAttribute;
-            this.context = context;
         }
 
         /**
@@ -200,53 +199,42 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
             int startOffset = insertionContext.getStartOffset();
             int tailOffset = insertionContext.getTailOffset();
 
-            // 确保文档已提交，避免在injected language环境中出现断言错误
-            PsiDocumentManager.getInstance(insertionContext.getProject()).commitDocument(document);
+            // 确保文档已提交，避免在 injected language 环境中出现断言错误
+            PsiDocumentManager.getInstance(insertionContext.getProject())
+                    .commitDocument(document);
 
             String insertText = lookupElement.getLookupString();
-
-            // 获取用户输入的前缀，用于计算需要删除的范围
-            String currentInput = this.context.getCurrentText();
             int documentLength = document.getTextLength();
+            int replaceStart = Math.max(0, startOffset);
 
-            // 计算前缀的起始位置
-            int prefixStart = startOffset - currentInput.length();
-            if (prefixStart < 0) {
-                prefixStart = 0;
-            }
-
-            // 严格的边界检查 - 防止在injected language环境中出现断言错误
-            if (prefixStart >= documentLength || startOffset > documentLength || tailOffset > documentLength) {
-                // 如果offset无效，直接插入参数名
-                this.insertParameter(document, editor, startOffset, insertText);
+            // 严格的边界检查，防止在 injected language 环境中出现断言错误
+            if (replaceStart > documentLength || tailOffset > documentLength) {
+                // 如果 offset 无效，直接插入参数名
+                this.insertParameter(document, editor, Math.min(startOffset, documentLength), insertText);
                 return;
             }
 
             try {
-                // 先删除IntelliJ刚插入的内容
-                if (startOffset < tailOffset) {
-                    document.deleteString(startOffset, tailOffset);
+                // IntelliJ 已经给出合法替换区间，这里只替换当前补全范围
+                if (replaceStart < tailOffset) {
+                    document.deleteString(replaceStart, tailOffset);
                 }
-
-                // 删除前缀
-                if (prefixStart < startOffset) {
-                    document.deleteString(prefixStart, startOffset);
-                }
-            } catch (Exception e) {
-                // 如果删除失败（比如在injected language环境中），直接在当前位置插入
-                this.insertParameter(document, editor, tailOffset, insertText);
+            } catch (Throwable e) {
+                // 如果删除失败（比如在 injected language 环境中），直接在当前位置插入
+                this.insertParameter(document, editor, Math.min(tailOffset, document.getTextLength()), insertText);
                 return;
             }
 
-            // 如果在XML属性中或不是基本类型，直接插入参数名
+            // 如果在 XML 属性中，或不是基本类型，则直接插入参数名
             if (this.isInXmlAttribute || !this.isPrimitiveType) {
-                document.insertString(prefixStart, insertText);
-                editor.getCaretModel().moveToOffset(prefixStart + insertText.length());
+                document.insertString(replaceStart, insertText);
+                editor.getCaretModel()
+                        .moveToOffset(replaceStart + insertText.length());
                 return;
             }
 
-            // 只有在XML内容中且是基本类型时，才需要添加 #{ }
-            this.insertParameterWithExpression(document, editor, prefixStart, insertText);
+            // 只有在 XML 内容中且是基本类型时，才需要补上 #{}
+            this.insertParameterWithExpression(document, editor, replaceStart, insertText);
         }
 
         /**
@@ -263,11 +251,12 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
                                      int offset,
                                      @NotNull String insertText) {
             document.insertString(offset, insertText);
-            editor.getCaretModel().moveToOffset(offset + insertText.length());
+            editor.getCaretModel()
+                    .moveToOffset(offset + insertText.length());
         }
 
         /**
-         * 插入带#{}的参数表达式
+         * 插入带 #{} 的参数表达式
          *
          * @param document document
          * @param editor editor
@@ -281,10 +270,11 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
                                                    @NotNull String insertText) {
             StringBuilder textBuilder = new StringBuilder();
 
-            // 检查前面是否已经有#{
+            // 检查前面是否已经有 #{
             String textBefore = "";
             if (offset > 2) {
-                textBefore = document.getText().substring(Math.max(0, offset - 2), offset);
+                textBefore = document.getText()
+                        .substring(Math.max(0, offset - 2), offset);
             }
 
             if (!"#{".equals(textBefore)) {
@@ -292,10 +282,11 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
             }
             textBuilder.append(insertText);
 
-            // 检查后面是否已经有}
+            // 检查后面是否已经有 }
             String textAfter = "";
             if (offset < document.getTextLength()) {
-                textAfter = document.getText().substring(offset, Math.min(offset + 1, document.getTextLength()));
+                textAfter = document.getText()
+                        .substring(offset, Math.min(offset + 1, document.getTextLength()));
             }
 
             if (!"}".equals(textAfter)) {
@@ -305,8 +296,9 @@ public class ParameterCompletionStrategy implements CompletionStrategy {
             // 插入新内容
             document.insertString(offset, textBuilder.toString());
 
-            // 移动光标到}后面
-            editor.getCaretModel().moveToOffset(offset + textBuilder.length());
+            // 移动光标到 } 后面
+            editor.getCaretModel()
+                    .moveToOffset(offset + textBuilder.length());
         }
     }
 }

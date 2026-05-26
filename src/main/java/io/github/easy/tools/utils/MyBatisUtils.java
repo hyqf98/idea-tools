@@ -240,6 +240,26 @@ public final class MyBatisUtils {
     }
 
     /**
+     * 统一解析根参数对应的 Java 类。
+     * 优先使用 XML 中的 parameterType，其次使用方法参数的实际推断类型，最后退回边界类型。
+     *
+     * @param context context
+     * @param parameter parameter
+     * @param paramName param name
+     * @return psi class
+     * @since 1.1.0
+     */
+    public static @Nullable PsiClass resolveRootParamClass(@NotNull PsiElement context,
+                                                           @NotNull PsiParameter parameter,
+                                                           @NotNull String paramName) {
+        PsiClass psiClass = resolveRootParamClass(context, paramName);
+        if (psiClass != null) {
+            return psiClass;
+        }
+        return resolveRootParamClass(parameter, paramName);
+    }
+
+    /**
      * 解析参数对应的 Java 类 (PsiClass)。
      * 支持泛型方法中的类型参数解析，会尝试从方法声明中推断实际类型。
      *

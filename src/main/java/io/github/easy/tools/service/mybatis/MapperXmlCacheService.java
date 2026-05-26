@@ -2,6 +2,8 @@ package io.github.easy.tools.service.mybatis;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.progress.ProcessCanceledException;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -12,8 +14,6 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.xml.XmlFile;
 import com.intellij.psi.xml.XmlTag;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.MapUtils;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -95,6 +95,9 @@ public final class MapperXmlCacheService {
 
                 // 遍历所有XML文件
                 for (VirtualFile virtualFile : xmlFiles) {
+                    // 检查是否被取消
+                    ProgressManager.checkCanceled();
+
                     PsiFile psiFile = psiManager.findFile(virtualFile);
                     if (!(psiFile instanceof XmlFile xmlFile)) {
                         continue;
@@ -112,6 +115,8 @@ public final class MapperXmlCacheService {
                 this.initialized = true;
                 log.info("MyBatis Mapper XML缓存完成，项目: {}, 共缓存{}个文件",
                         this.project.getName(), this.namespaceToXmlFileCache.size());
+            } catch (ProcessCanceledException e) {
+                throw e;
             } catch (Exception e) {
                 log.error("扫描Mapper XML文件失败", e);
             }
@@ -217,6 +222,6 @@ public final class MapperXmlCacheService {
      * @since 1.0.0
      */
     public boolean isCacheEmpty() {
-        return MapUtils.isEmpty(this.namespaceToXmlFileCache);
+        return this.namespaceToXmlFileCache == null || this.namespaceToXmlFileCache.isEmpty();
     }
 }

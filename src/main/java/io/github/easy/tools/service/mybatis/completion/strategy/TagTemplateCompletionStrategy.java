@@ -11,17 +11,28 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiAnnotationMemberValue;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiLiteralExpression;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiType;
+import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.PsiTypesUtil;
 import io.github.easy.tools.action.conversion.PropertyNameConverter;
 import io.github.easy.tools.service.mybatis.completion.CompletionContext;
 import io.github.easy.tools.service.mybatis.completion.CompletionStrategy;
 import io.github.easy.tools.service.mybatis.expression.MyBatisExpressionParser;
 import io.github.easy.tools.utils.MyBatisUtils;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Builder;
 import lombok.Data;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -59,70 +70,72 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
      * @since 1.0.0
      */
     private void initializeTemplates() {
+        this.templates.add(TagTemplate.builder()
+                                   .keyword("value")
+                                   .description("生成参数取值表达式")
+                                   .template("")
+                                   .build());
+
         // if标签模板 - 使用类型感知模板标记
         this.templates.add(TagTemplate.builder()
-                .keyword("if")
-                .description("生成if标签(判断非空，根据字段类型自动适配)")
-                .template("<if test=\"{expression} != null\">\n    {cursor}\n</if>")
-                .typeAware(true)
-                .build());
-
-        this.templates.add(TagTemplate.builder()
-                .keyword("ifnull")
-                .description("生成if标签(判断为空)")
-                .template("<if test=\"{expression} == null\">\n    {cursor}\n</if>")
-                .typeAware(true)
-                .build());
+                                   .keyword("if")
+                                   .description("生成if标签(判断非空，根据字段类型自动适配)")
+                                   .template("<if test=\"{expression} != null\">\n    {cursor}\n</if>")
+                                   .typeAware(true)
+                                   .build());
 
         // parentif标签模板 - 为父类字段生成if标签
         this.templates.add(TagTemplate.builder()
-                .keyword("parentif")
-                .description("生成父类所有字段的if标签(批量)")
-                .template("")
-                .typeAware(false)
-                .isParentFields(true)
-                .build());
+                                   .keyword("parentif")
+                                   .description("生成父类所有字段的if标签(批量)")
+                                   .template("")
+                                   .typeAware(false)
+                                   .isParentFields(true)
+                                   .build());
 
         // when标签模板
         this.templates.add(TagTemplate.builder()
-                .keyword("when")
-                .description("生成when标签")
-                .template("<when test=\"{expression} != null\">\n    {cursor}\n</when>")
-                .build());
+                                   .keyword("when")
+                                   .description("生成when标签")
+                                   .template("<when test=\"{expression} != null\">\n    {cursor}\n</when>")
+                                   .build());
 
         // foreach标签模板
         this.templates.add(TagTemplate.builder()
-                .keyword("for")
-                .description("生成foreach标签")
-                .template("<foreach collection=\"{expression}\" item=\"item\" separator=\",\">\n    {cursor}\n</foreach>")
-                .build());
+                                   .keyword("for")
+                                   .description("生成foreach标签(判断非空且集合非空)")
+                                   .template(
+                                           "<if test=\"{expression} != null and {expression}.size() > 0\">\n    <foreach " +
+                                                   "collection=\"{expression}\" item=\"item\" separator=\",\">\n        {cursor}\n    " +
+                                                   "</foreach>\n</if>")
+                                   .build());
 
         this.templates.add(TagTemplate.builder()
-                .keyword("foreach")
-                .description("生成foreach标签(完整)")
-                .template("<foreach collection=\"{expression}\" item=\"item\" index=\"index\" separator=\",\" open=\"(\" close=\")\">\n    {cursor}\n</foreach>")
-                .build());
-
-        // where标签模板
-        this.templates.add(TagTemplate.builder()
-                .keyword("where")
-                .description("生成where标签")
-                .template("<where>\n    {cursor}\n</where>")
-                .build());
+                                   .keyword("foreach")
+                                   .description("生成foreach标签(完整，判断非空且集合非空)")
+                                   .template(
+                                           "<if test=\"{expression} != null and {expression}.size() > 0\">\n    <foreach " +
+                                                   "collection=\"{expression}\" item=\"item\" index=\"index\" separator=\",\" open=\"(\" " +
+                                                   "close=\")\">\n        {cursor}\n    </foreach>\n</if>")
+                                   .build());
 
         // set标签模板
         this.templates.add(TagTemplate.builder()
-                .keyword("set")
-                .description("生成set标签(用于update)")
-                .template("<set>\n    <if test=\"{expression} != null\">\n        {field} = #{{{expression}}},\n    </if>\n    {cursor}\n</set>")
-                .build());
+                                   .keyword("set")
+                                   .description("生成set标签(用于update)")
+                                   .template(
+                                           "<set>\n    <if test=\"{expression} != null\">\n        {field} = #{{{expression}}},\n    " +
+                                                   "</if>\n    {cursor}\n</set>")
+                                   .build());
 
         // choose-when-otherwise标签模板
         this.templates.add(TagTemplate.builder()
-                .keyword("choose")
-                .description("生成choose-when-otherwise标签")
-                .template("<choose>\n    <when test=\"{expression} != null\">\n        {cursor}\n    </when>\n    <otherwise>\n        \n    </otherwise>\n</choose>")
-                .build());
+                                   .keyword("choose")
+                                   .description("生成choose-when-otherwise标签")
+                                   .template(
+                                           "<choose>\n    <when test=\"{expression} != null\">\n        {cursor}\n    </when>\n    " +
+                                                   "<otherwise>\n        \n    </otherwise>\n</choose>")
+                                   .build());
     }
 
     /**
@@ -148,10 +161,11 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             this.provideTagTemplateCompletions(context, result);
             return;
         }
-        
+
         // 在FIELD类型时，如果当前输入以标签关键字前缀结尾，也提供标签补全
         if (completionType == CompletionContext.CompletionType.FIELD) {
-            String[] parts = MyBatisExpressionParser.parseForCompletion(currentText).getParts();
+            String[] parts = MyBatisExpressionParser.parseForCompletion(currentText)
+                    .getParts();
             if (parts.length >= 2) {
                 String lastPart = parts[parts.length - 1].toLowerCase();
                 if (this.isTagKeywordPrefix(lastPart)) {
@@ -176,27 +190,27 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
         }
 
         CompletionContext.CompletionType completionType = context.getCompletionType();
-        
+
         // 直接支持TAG_TEMPLATE和KEYWORD_ONLY类型
         if (completionType == CompletionContext.CompletionType.TAG_TEMPLATE ||
-            completionType == CompletionContext.CompletionType.KEYWORD_ONLY) {
+                completionType == CompletionContext.CompletionType.KEYWORD_ONLY) {
             return true;
         }
-        
+
         // 在FIELD类型时，如果当前输入以标签关键字前缀结尾，也支持标签补全
         if (completionType == CompletionContext.CompletionType.FIELD) {
             String currentText = context.getCurrentText();
             MyBatisExpressionParser.ExpressionParseResult parseResult =
                     MyBatisExpressionParser.parseForCompletion(currentText);
             String[] parts = parseResult.getParts();
-            
+
             // 如果parts长度>=2，检查最后一部分是否是标签关键字的前缀
             if (parts.length >= 2) {
                 String lastPart = parts[parts.length - 1].toLowerCase();
                 return this.isTagKeywordPrefix(lastPart);
             }
         }
-        
+
         return false;
     }
 
@@ -214,7 +228,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
 
         // 检查是否是任何标签关键字的前缀
         for (TagTemplate template : this.templates) {
-            if (template.getKeyword().startsWith(input)) {
+            if (template.getKeyword()
+                    .startsWith(input)) {
                 return true;
             }
         }
@@ -231,11 +246,12 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
      */
     private void provideKeywordOnlyCompletions(@NotNull CompletionContext context,
                                                @NotNull CompletionResultSet result) {
-        String currentText = context.getCurrentText().toLowerCase();
-        
+        String currentText = context.getCurrentText()
+                .toLowerCase();
+
         // 使用自定义前缀匹配器
         CompletionResultSet tagResult = result.withPrefixMatcher(currentText);
-        
+
         // 提供所有匹配的标签关键字
         for (TagTemplate template : this.templates) {
             LookupElementBuilder builder = LookupElementBuilder
@@ -245,7 +261,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                     .withTailText(" " + template.getDescription(), true)
                     .withInsertHandler(new KeywordOnlyInsertHandler(template));
 
-            LookupElement prioritized = PrioritizedLookupElement.withPriority(builder, 100.0);
+            LookupElement prioritized = PrioritizedLookupElement.withPriority(builder, this.getTemplatePriority(template));
             tagResult.addElement(prioritized);
         }
     }
@@ -260,7 +276,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
     private void provideTagTemplateCompletions(@NotNull CompletionContext context,
                                                @NotNull CompletionResultSet result) {
         String currentText = context.getCurrentText();
-        
+
         // 解析表达式
         MyBatisExpressionParser.ExpressionParseResult parseResult =
                 MyBatisExpressionParser.parseForCompletion(currentText);
@@ -298,7 +314,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
         // 提供匹配的模板
         for (TagTemplate template : this.templates) {
             String fieldName = this.extractFieldName(parts);
-            
+
             LookupElementBuilder builder = LookupElementBuilder
                     .create(template.getKeyword())
                     .withIcon(AllIcons.Nodes.Tag)
@@ -307,9 +323,17 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                     .withInsertHandler(new TagTemplateInsertHandler(
                             template, expression, fieldName, isObjectLevel, context));
 
-            LookupElement prioritized = PrioritizedLookupElement.withPriority(builder, 100.0);
+            LookupElement prioritized = PrioritizedLookupElement.withPriority(builder, this.getTemplatePriority(template));
             tagResult.addElement(prioritized);
         }
+    }
+
+    private double getTemplatePriority(@NotNull TagTemplate template) {
+        return switch (template.getKeyword()) {
+            case "value" -> 120.0;
+            case "if" -> 110.0;
+            default -> 100.0;
+        };
     }
 
     /**
@@ -335,7 +359,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
         }
 
         // 验证根参数是否存在
-        for (PsiParameter param : method.getParameterList().getParameters()) {
+        for (PsiParameter param : method.getParameterList()
+                .getParameters()) {
             String paramName = param.getName();
             String annotationValue = MyBatisUtils.getParamAnnotationValue(param);
             if (StringUtil.isNotEmpty(annotationValue)) {
@@ -415,32 +440,19 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
      * @version 1.0.0
      * @date 2025-12-18
      * @since 1.0.0
+     * @param template
+    template
+     * @param expression
+    expression
+     * @param fieldName
+    field name
+     * @param isObjectLevel
+    is object level (query.if)
+     * @param context
+    completion context
      */
-    private static class TagTemplateInsertHandler implements InsertHandler<LookupElement> {
-
-        /**
-         * template
-         *
-         */
-        private final TagTemplate template;
-        /**
-         * expression
-         *
-         */
-        private final String expression;
-        /**
-         * field name
-         *
-         */
-        private final String fieldName;
-        /**
-         * is object level (query.if)
-         */
-        private final boolean isObjectLevel;
-        /**
-         * completion context
-         */
-        private final CompletionContext context;
+    private record TagTemplateInsertHandler(TagTemplate template, String expression, String fieldName, boolean isObjectLevel,
+                                            CompletionContext context) implements InsertHandler<LookupElement> {
 
         /**
          * Tag Template Insert Handler
@@ -452,11 +464,11 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          * @param context completion context
          * @since 1.0.0
          */
-        public TagTemplateInsertHandler(@NotNull TagTemplate template,
-                                        @NotNull String expression,
-                                        @NotNull String fieldName,
-                                        boolean isObjectLevel,
-                                        @NotNull CompletionContext context) {
+        private TagTemplateInsertHandler(@NotNull TagTemplate template,
+                                         @NotNull String expression,
+                                         @NotNull String fieldName,
+                                         boolean isObjectLevel,
+                                         @NotNull CompletionContext context) {
             this.template = template;
             this.expression = expression;
             this.fieldName = fieldName;
@@ -490,7 +502,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
 
                 // 向前检查是否有#{或${
                 if (deleteStart >= 2) {
-                    String textBefore = document.getText().substring(deleteStart - 2, deleteStart);
+                    String textBefore = document.getText()
+                            .substring(deleteStart - 2, deleteStart);
                     if ("#{".equals(textBefore) || "${".equals(textBefore)) {
                         finalDeleteStart = deleteStart - 2;
                     }
@@ -498,7 +511,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
 
                 // 向后检查是否有}
                 if (tailOffset < document.getTextLength()) {
-                    char charAfter = document.getCharsSequence().charAt(tailOffset);
+                    char charAfter = document.getCharsSequence()
+                            .charAt(tailOffset);
                     if (charAfter == '}') {
                         finalDeleteEnd = tailOffset + 1;
                     }
@@ -537,10 +551,12 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                 if (cursorPos >= 0) {
                     int finalCursorPos = finalDeleteStart + cursorPos;
                     document.deleteString(finalCursorPos, finalCursorPos + "{cursor}".length());
-                    editor.getCaretModel().moveToOffset(finalCursorPos);
+                    editor.getCaretModel()
+                            .moveToOffset(finalCursorPos);
                 } else {
                     // 如果没有cursor标记，光标移动到末尾
-                    editor.getCaretModel().moveToOffset(finalDeleteStart + templateContent.length());
+                    editor.getCaretModel()
+                            .moveToOffset(finalDeleteStart + templateContent.length());
                 }
             });
         }
@@ -556,7 +572,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
         private int findExpressionStart(@NotNull Document document, int startOffset) {
             int pos = startOffset - 1;
             while (pos > 0) {
-                char c = document.getCharsSequence().charAt(pos);
+                char c = document.getCharsSequence()
+                        .charAt(pos);
                 if (Character.isWhitespace(c) || c == '{' || c == '>') {
                     return pos + 1;
                 }
@@ -575,13 +592,13 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          */
         private String getCurrentLineIndent(@NotNull Document document, int offset) {
             CharSequence chars = document.getCharsSequence();
-            
+
             // 向前查找到行首
             int lineStart = offset;
             while (lineStart > 0 && chars.charAt(lineStart - 1) != '\n') {
                 lineStart--;
             }
-            
+
             // 提取行首的空白字符
             StringBuilder indent = new StringBuilder();
             for (int i = lineStart; i < offset && i < chars.length(); i++) {
@@ -592,7 +609,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                     break;
                 }
             }
-            
+
             return indent.toString();
         }
 
@@ -608,10 +625,10 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             if (indent.isEmpty()) {
                 return template;
             }
-            
+
             String[] lines = template.split("\n", -1);
             StringBuilder result = new StringBuilder();
-            
+
             for (int i = 0; i < lines.length; i++) {
                 if (i > 0) {
                     result.append("\n");
@@ -622,7 +639,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                 }
                 result.append(lines[i]);
             }
-            
+
             return result.toString();
         }
 
@@ -633,6 +650,9 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          * @since 1.0.0
          */
         private String generateTemplateContent() {
+            if ("value".equals(this.template.getKeyword())) {
+                return "#{" + this.expression + "}";
+            }
             return this.template.getTemplate()
                     .replace("{expression}", this.expression)
                     .replace("{field}", this.fieldName);
@@ -649,28 +669,11 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             // 解析表达式获取字段类型
             String fieldType = this.getFieldType();
 
-            // 根据字段类型生成判断条件
-            String condition;
-            if (this.isStringType(fieldType)) {
-                // String类型: != null and != ''
-                condition = this.expression + " != null and " + this.expression + " != ''";
-            } else {
-                // 非String类型: 只判断 != null
-                condition = this.expression + " != null";
-            }
-
             String keyword = this.template.getKeyword();
             if ("if".equals(keyword)) {
-                return "<if test=\"" + condition + "\">\n    {cursor}\n</if>";
+                return this.buildIfTag(this.expression, this.fieldName, fieldType, this.extractTerminalName(this.expression), true);
             } else if ("ifnull".equals(keyword)) {
-                // 反转条件
-                String nullCondition;
-                if (this.isStringType(fieldType)) {
-                    nullCondition = this.expression + " == null or " + this.expression + " == ''";
-                } else {
-                    nullCondition = this.expression + " == null";
-                }
-                return "<if test=\"" + nullCondition + "\">\n    {cursor}\n</if>";
+                return "<if test=\"" + this.buildEmptyCondition(this.expression, fieldType) + "\">\n    {cursor}\n</if>";
             }
 
             return this.template.getTemplate()
@@ -702,7 +705,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             // 查找根参数
             String rootParam = parseResult.getRootParam();
             PsiParameter parameter = null;
-            for (PsiParameter param : method.getParameterList().getParameters()) {
+            for (PsiParameter param : method.getParameterList()
+                    .getParameters()) {
                 String paramName = param.getName();
                 String annotationValue = MyBatisUtils.getParamAnnotationValue(param);
                 if (StringUtil.isNotEmpty(annotationValue)) {
@@ -719,7 +723,11 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             }
 
             // 获取参数类型
-            PsiClass currentClass = MyBatisUtils.resolveRootParamClass(parameter, rootParam);
+            PsiClass currentClass = MyBatisUtils.resolveRootParamClass(
+                    this.context.getPosition(),
+                    parameter,
+                    rootParam
+            );
             if (currentClass == null) {
                 return null;
             }
@@ -741,7 +749,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
 
                 if (i == parts.length - 1) {
                     // 最后一个字段，返回其类型
-                    return field.getType().getCanonicalText();
+                    return field.getType()
+                            .getCanonicalText();
                 }
 
                 // 继续解析嵌套类型
@@ -782,13 +791,88 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          */
         private boolean isStringType(String typeCanonicalText) {
             if (StringUtil.isEmpty(typeCanonicalText)) {
-                // 默认当作String类型处理
-                return true;
+                return false;
             }
             String type = typeCanonicalText.toLowerCase();
             return type.equals("java.lang.string") ||
-                   type.equals("string") ||
-                   type.contains("string");
+                    type.equals("string");
+        }
+
+        /**
+         * 判断是否为集合或Map类型
+         *
+         * @param typeCanonicalText 类型的完全限定名
+         * @return true如果是集合或Map类型
+         * @since 1.0.0
+         */
+        private boolean isCollectionOrMapType(String typeCanonicalText) {
+            if (StringUtil.isEmpty(typeCanonicalText)) {
+                return false;
+            }
+            String type = typeCanonicalText.toLowerCase();
+            return type.startsWith("java.util.collection") ||
+                    type.startsWith("java.util.list") ||
+                    type.startsWith("java.util.set") ||
+                    type.startsWith("java.util.map") ||
+                    type.startsWith("java.util.iterable") ||
+                    type.contains("collection<") ||
+                    type.contains("list<") ||
+                    type.contains("set<") ||
+                    type.contains("map<") ||
+                    type.contains("iterable<");
+        }
+
+        /**
+         * 判断是否为数组类型
+         *
+         * @param typeCanonicalText 类型的完全限定名
+         * @return true如果是数组类型
+         * @since 1.0.0
+         */
+        private boolean isArrayType(String typeCanonicalText) {
+            return StringUtil.isNotEmpty(typeCanonicalText) && typeCanonicalText.endsWith("[]");
+        }
+
+        /**
+         * 构建非空条件
+         *
+         * @param expression 表达式
+         * @param fieldType 字段类型
+         * @return 条件表达式
+         * @since 1.0.0
+         */
+        private String buildPresentCondition(@NotNull String expression, String fieldType) {
+            if (this.isCollectionOrMapType(fieldType)) {
+                return expression + " != null and " + expression + ".size() > 0";
+            }
+            if (this.isArrayType(fieldType)) {
+                return expression + " != null and " + expression + ".length > 0";
+            }
+            if (this.isStringType(fieldType)) {
+                return expression + " != null and " + expression + " != ''";
+            }
+            return expression + " != null";
+        }
+
+        /**
+         * 构建空值条件
+         *
+         * @param expression 表达式
+         * @param fieldType 字段类型
+         * @return 条件表达式
+         * @since 1.0.0
+         */
+        private String buildEmptyCondition(@NotNull String expression, String fieldType) {
+            if (this.isCollectionOrMapType(fieldType)) {
+                return expression + " == null or " + expression + ".size() == 0";
+            }
+            if (this.isArrayType(fieldType)) {
+                return expression + " == null or " + expression + ".length == 0";
+            }
+            if (this.isStringType(fieldType)) {
+                return expression + " == null or " + expression + " == ''";
+            }
+            return expression + " == null";
         }
 
         /**
@@ -798,49 +882,12 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          * @since 1.0.0
          */
         private String generateBatchFieldIfTemplate() {
-            PsiMethod method = this.context.getMapperMethod();
-            if (method == null) {
-                return this.generateTemplateContent();
-            }
-
-            // 解析表达式获取根参数
-            MyBatisExpressionParser.ExpressionParseResult parseResult =
-                    MyBatisExpressionParser.parseForCompletion(this.expression);
-            String rootParam = parseResult.getRootParam();
-
-            // 查找根参数
-            PsiParameter parameter = null;
-            for (PsiParameter param : method.getParameterList().getParameters()) {
-                String paramName = param.getName();
-                String annotationValue = MyBatisUtils.getParamAnnotationValue(param);
-                if (StringUtil.isNotEmpty(annotationValue)) {
-                    paramName = annotationValue;
-                }
-                if (rootParam.equals(paramName)) {
-                    parameter = param;
-                    break;
-                }
-            }
-
-            if (parameter == null) {
-                return this.generateTemplateContent();
-            }
-
-            // 获取参数类型
-            PsiClass psiClass = MyBatisUtils.resolveRootParamClass(parameter, rootParam);
+            PsiClass psiClass = this.resolveExpressionRootClass();
             if (psiClass == null) {
                 return this.generateTemplateContent();
             }
 
-            psiClass = MyBatisUtils.resolveActualClassFromType(psiClass);
-            if (psiClass == null) {
-                return this.generateTemplateContent();
-            }
-
-            // 只获取当前类的字段（不包括父类）
-            PsiField[] ownFields = psiClass.getFields();
-
-            return this.generateFieldIfTags(ownFields, false);
+            return this.generateFieldIfTags(this.getOwnFields(psiClass));
         }
 
         /**
@@ -850,17 +897,49 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          * @since 1.0.0
          */
         private String generateParentFieldIfTemplate() {
-            PsiMethod method = this.context.getMapperMethod();
-            if (method == null) {
+            PsiClass psiClass = this.resolveExpressionRootClass();
+            if (psiClass == null) {
                 return "{cursor}";
             }
 
-            // 解析表达式获取根参数
+            return this.generateFieldIfTags(this.getParentFields(psiClass));
+        }
+
+        @NotNull
+        private PsiField[] getOwnFields(@NotNull PsiClass psiClass) {
+            return psiClass.getFields();
+        }
+
+        @NotNull
+        private PsiField[] getParentFields(@NotNull PsiClass psiClass) {
+            PsiField[] allFields = psiClass.getAllFields();
+            PsiField[] ownFields = this.getOwnFields(psiClass);
+
+            Set<String> ownFieldNames = new HashSet<>();
+            for (PsiField field : ownFields) {
+                ownFieldNames.add(field.getName());
+            }
+
+            List<PsiField> parentFields = new ArrayList<>();
+            for (PsiField field : allFields) {
+                if (!ownFieldNames.contains(field.getName())) {
+                    parentFields.add(field);
+                }
+            }
+
+            return parentFields.toArray(new PsiField[0]);
+        }
+
+        private PsiClass resolveExpressionRootClass() {
+            PsiMethod method = this.context.getMapperMethod();
+            if (method == null) {
+                return null;
+            }
+
             MyBatisExpressionParser.ExpressionParseResult parseResult =
                     MyBatisExpressionParser.parseForCompletion(this.expression);
             String rootParam = parseResult.getRootParam();
 
-            // 查找根参数
             PsiParameter parameter = null;
             for (PsiParameter param : method.getParameterList().getParameters()) {
                 String paramName = param.getName();
@@ -875,53 +954,34 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             }
 
             if (parameter == null) {
-                return "{cursor}";
+                return null;
             }
 
-            // 获取参数类型
-            PsiClass psiClass = MyBatisUtils.resolveRootParamClass(parameter, rootParam);
+            PsiClass psiClass = MyBatisUtils.resolveRootParamClass(
+                    this.context.getPosition(),
+                    parameter,
+                    rootParam
+            );
             if (psiClass == null) {
-                return "{cursor}";
+                return null;
             }
 
-            psiClass = MyBatisUtils.resolveActualClassFromType(psiClass);
-            if (psiClass == null) {
-                return "{cursor}";
-            }
-
-            // 获取所有字段（包括父类）
-            PsiField[] allFields = psiClass.getAllFields();
-            // 获取当前类的字段
-            PsiField[] ownFields = psiClass.getFields();
-
-            // 过滤出父类字段
-            java.util.Set<String> ownFieldNames = new java.util.HashSet<>();
-            for (PsiField f : ownFields) {
-                ownFieldNames.add(f.getName());
-            }
-
-            java.util.List<PsiField> parentFields = new java.util.ArrayList<>();
-            for (PsiField f : allFields) {
-                if (!ownFieldNames.contains(f.getName())) {
-                    parentFields.add(f);
-                }
-            }
-
-            return this.generateFieldIfTags(parentFields.toArray(new PsiField[0]), true);
+            return MyBatisUtils.resolveActualClassFromType(psiClass);
         }
 
         /**
          * 生成字段if标签（支持类型检测）
          *
          * @param fields 字段数组
-         * @param includeParentFields 是否包含父类字段
          * @return 模板内容
          * @since 1.0.0
          */
-        private String generateFieldIfTags(PsiField[] fields, boolean includeParentFields) {
+        private String generateFieldIfTags(PsiField[] fields) {
             if (fields.length == 0) {
                 return "{cursor}";
             }
+
+            PsiClass entityClass = this.resolveEntityClass();
 
             // 生成所有字段的if标签
             StringBuilder result = new StringBuilder();
@@ -930,35 +990,291 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
 
                 // 跳过静态字段和特殊字段
                 if (field.hasModifierProperty("static") ||
-                    "serialVersionUID".equals(fieldName) ||
-                    "class".equals(fieldName)) {
+                        "serialVersionUID".equals(fieldName) ||
+                        "class".equals(fieldName)) {
                     continue;
                 }
 
                 String fullPath = this.expression + "." + fieldName;
-                String columnName = PropertyNameConverter.toLowerUnderline(fieldName);
+                String columnName = this.resolveBestColumnName(fieldName, entityClass);
 
-                // 根据字段类型生成判断条件
-                String fieldType = field.getType().getCanonicalText();
-                String condition;
-                if (this.isStringType(fieldType)) {
-                    // String类型: != null and != ''
-                    condition = fullPath + " != null and " + fullPath + " != ''";
-                } else {
-                    // 非String类型: 只判断 != null
-                    condition = fullPath + " != null";
-                }
-
-                result.append("<if test=\"").append(condition).append("\">\n")
-                      .append("    ").append(columnName).append(" = #{")
-                      .append(fullPath).append("},\n")
-                      .append("</if>\n");
+                String fieldType = field.getType()
+                        .getCanonicalText();
+                result.append(this.buildIfTag(fullPath, columnName, fieldType, fieldName, false));
+                result.append("\n");
             }
 
             // 添加cursor标记
             result.append("{cursor}");
 
             return result.toString();
+        }
+
+        private String buildIfTag(@NotNull String expression,
+                                  @NotNull String columnName,
+                                  String fieldType,
+                                  @NotNull String fieldName,
+                                  boolean appendCursor) {
+            StringBuilder result = new StringBuilder();
+            result.append("<if test=\"")
+                    .append(this.buildPresentCondition(expression, fieldType))
+                    .append("\">\n")
+                    .append(this.buildIfBody(expression, columnName, fieldType, fieldName));
+            if (appendCursor) {
+                result.append("\n    {cursor}");
+            }
+            result.append("\n</if>");
+            return result.toString();
+        }
+
+        private String buildIfBody(@NotNull String expression,
+                                   @NotNull String columnName,
+                                   String fieldType,
+                                   @NotNull String fieldName) {
+            if (this.isCollectionOrMapType(fieldType) || this.isArrayType(fieldType)) {
+                String itemName = this.buildForeachItemName(fieldName);
+                return "    and " + columnName + " in\n" +
+                        "    <foreach item=\"" + itemName + "\" collection=\"" + expression +
+                        "\" separator=\",\" open=\"(\" close=\")\">\n" +
+                        "        #{" + itemName + "}\n" +
+                        "    </foreach>";
+            }
+            if (this.isStringType(fieldType)) {
+                return "    and " + columnName + " like concat('%', #{" + expression + "}, '%')";
+            }
+            return "    and " + columnName + " = #{" + expression + "}";
+        }
+
+        @NotNull
+        private String buildForeachItemName(@NotNull String fieldName) {
+            return fieldName + "Item";
+        }
+
+        @NotNull
+        private String extractTerminalName(@NotNull String expression) {
+            int lastDotIndex = expression.lastIndexOf('.');
+            if (lastDotIndex < 0 || lastDotIndex == expression.length() - 1) {
+                return expression;
+            }
+            return expression.substring(lastDotIndex + 1);
+        }
+
+        @NotNull
+        private String resolveBestColumnName(@NotNull String fieldName, @Nullable PsiClass entityClass) {
+            String defaultColumnName = PropertyNameConverter.toLowerUnderline(fieldName);
+            if (entityClass == null) {
+                return defaultColumnName;
+            }
+
+            double bestScore = 0.0D;
+            String bestColumnName = defaultColumnName;
+            for (PsiField entityField : entityClass.getAllFields()) {
+                if (entityField.hasModifierProperty("static")) {
+                    continue;
+                }
+
+                String entityFieldName = entityField.getName();
+                String entityColumnName = this.resolveColumnName(entityField);
+                double fieldScore = this.calculateColumnSimilarity(fieldName, entityFieldName);
+                double columnScore = this.calculateColumnSimilarity(fieldName, entityColumnName);
+                double score = Math.max(fieldScore, columnScore);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestColumnName = entityColumnName;
+                }
+            }
+
+            return bestScore >= 0.75D ? bestColumnName : defaultColumnName;
+        }
+
+        @NotNull
+        private String resolveColumnName(@NotNull PsiField field) {
+            String annotationColumnName = this.findColumnNameFromAnnotation(field);
+            if (StringUtil.isNotEmpty(annotationColumnName)) {
+                return annotationColumnName;
+            }
+            return PropertyNameConverter.toLowerUnderline(field.getName());
+        }
+
+        @Nullable
+        private String findColumnNameFromAnnotation(@NotNull PsiField field) {
+            for (PsiAnnotation annotation : field.getAnnotations()) {
+                String qualifiedName = annotation.getQualifiedName();
+                if (StringUtil.isEmpty(qualifiedName)) {
+                    continue;
+                }
+                if (qualifiedName.endsWith(".TableField") || qualifiedName.endsWith(".TableId")) {
+                    String value = this.getAnnotationStringAttribute(annotation, "value");
+                    if (StringUtil.isNotEmpty(value)) {
+                        return value;
+                    }
+                }
+                if (qualifiedName.endsWith(".Column")) {
+                    String name = this.getAnnotationStringAttribute(annotation, "name");
+                    if (StringUtil.isNotEmpty(name)) {
+                        return name;
+                    }
+                    String value = this.getAnnotationStringAttribute(annotation, "value");
+                    if (StringUtil.isNotEmpty(value)) {
+                        return value;
+                    }
+                }
+            }
+            return null;
+        }
+
+        @Nullable
+        private String getAnnotationStringAttribute(@NotNull PsiAnnotation annotation, @NotNull String attributeName) {
+            PsiAnnotationMemberValue attributeValue = annotation.findAttributeValue(attributeName);
+            if (attributeValue instanceof PsiLiteralExpression literalExpression) {
+                Object value = literalExpression.getValue();
+                if (value instanceof String stringValue && StringUtil.isNotEmpty(stringValue)) {
+                    return stringValue;
+                }
+            }
+            return null;
+        }
+
+        private double calculateColumnSimilarity(@NotNull String source, @NotNull String candidate) {
+            String normalizedSource = this.normalizeForColumnMatch(source);
+            String normalizedCandidate = this.normalizeForColumnMatch(candidate);
+            if (normalizedSource.isEmpty() || normalizedCandidate.isEmpty()) {
+                return 0.0D;
+            }
+            if (normalizedSource.equals(normalizedCandidate)) {
+                return 1.0D;
+            }
+            if (normalizedSource.contains(normalizedCandidate) || normalizedCandidate.contains(normalizedSource)) {
+                return (double) Math.min(normalizedSource.length(), normalizedCandidate.length()) /
+                        (double) Math.max(normalizedSource.length(), normalizedCandidate.length()) + 0.1D;
+            }
+            int lcsLength = this.longestCommonSubsequenceLength(normalizedSource, normalizedCandidate);
+            return (2.0D * lcsLength) / (normalizedSource.length() + normalizedCandidate.length());
+        }
+
+        @NotNull
+        private String normalizeForColumnMatch(@NotNull String name) {
+            String normalized = name.toLowerCase()
+                    .replace("_", "")
+                    .replace("-", "");
+            String[] suffixes = {"list", "set", "array", "collection", "items", "item", "values"};
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (String suffix : suffixes) {
+                    if (normalized.endsWith(suffix) && normalized.length() > suffix.length()) {
+                        normalized = normalized.substring(0, normalized.length() - suffix.length());
+                        changed = true;
+                    }
+                }
+            }
+            return normalized;
+        }
+
+        private int longestCommonSubsequenceLength(@NotNull String left, @NotNull String right) {
+            int[][] dp = new int[left.length() + 1][right.length() + 1];
+            for (int i = 1; i <= left.length(); i++) {
+                for (int j = 1; j <= right.length(); j++) {
+                    if (left.charAt(i - 1) == right.charAt(j - 1)) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+            return dp[left.length()][right.length()];
+        }
+
+        @Nullable
+        private PsiClass resolveEntityClass() {
+            PsiMethod method = this.context.getMapperMethod();
+            if (method == null) {
+                return null;
+            }
+
+            PsiClass mapperClass = method.getContainingClass();
+            if (mapperClass != null) {
+                PsiClass entityClass = this.findEntityTypeFromMapper(mapperClass);
+                if (entityClass != null) {
+                    entityClass = MyBatisUtils.resolveActualClassFromType(entityClass);
+                    if (entityClass != null) {
+                        return entityClass;
+                    }
+                }
+            }
+
+            PsiClass rootClass = this.resolveExpressionRootClass();
+            if (rootClass == null) {
+                return null;
+            }
+            return this.inferEntityClassFromQueryClass(rootClass);
+        }
+
+        @Nullable
+        private PsiClass findEntityTypeFromMapper(@NotNull PsiClass mapperClass) {
+            for (PsiClassType superType : mapperClass.getSuperTypes()) {
+                PsiClass superClass = superType.resolve();
+                if (superClass == null) {
+                    continue;
+                }
+
+                PsiType[] typeParameters = superType.getParameters();
+                if (typeParameters.length > 0) {
+                    PsiClass entityClass = PsiTypesUtil.getPsiClass(typeParameters[0]);
+                    if (entityClass != null) {
+                        return entityClass;
+                    }
+                }
+
+                PsiClass nestedEntityClass = this.findEntityTypeFromMapper(superClass);
+                if (nestedEntityClass != null) {
+                    return nestedEntityClass;
+                }
+            }
+            return null;
+        }
+
+        @Nullable
+        private PsiClass inferEntityClassFromQueryClass(@NotNull PsiClass queryClass) {
+            String className = queryClass.getName();
+            String qualifiedName = queryClass.getQualifiedName();
+            if (StringUtil.isEmpty(className) || StringUtil.isEmpty(qualifiedName)) {
+                return null;
+            }
+
+            String entityName = className;
+            String[] suffixes = {"Query", "DTO", "VO", "Request"};
+            for (String suffix : suffixes) {
+                if (entityName.endsWith(suffix) && entityName.length() > suffix.length()) {
+                    entityName = entityName.substring(0, entityName.length() - suffix.length());
+                    break;
+                }
+            }
+            if (entityName.equals(className)) {
+                return null;
+            }
+
+            String packageName = qualifiedName.substring(0, qualifiedName.lastIndexOf('.'));
+            String[] candidatePackages = {
+                    packageName,
+                    packageName.replace(".query", ".entity"),
+                    packageName.replace(".query", ".model"),
+                    packageName.replace(".dto", ".entity"),
+                    packageName.replace(".dto", ".model"),
+                    packageName.replace(".vo", ".entity"),
+                    packageName.replace(".request", ".entity")
+            };
+
+            GlobalSearchScope scope = GlobalSearchScope.allScope(queryClass.getProject());
+            for (String candidatePackage : candidatePackages) {
+                String candidateFqn = candidatePackage + "." + entityName;
+                PsiClass candidateClass = JavaPsiFacade.getInstance(queryClass.getProject())
+                        .findClass(candidateFqn, scope);
+                if (candidateClass != null) {
+                    return candidateClass;
+                }
+            }
+            return null;
         }
     }
 
@@ -969,13 +1285,10 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
      * @version 1.0.0
      * @date 2025-12-23
      * @since 1.0.0
+     * @param template
+    template
      */
-    private static class KeywordOnlyInsertHandler implements InsertHandler<LookupElement> {
-
-        /**
-         * template
-         */
-        private final TagTemplate template;
+    private record KeywordOnlyInsertHandler(TagTemplate template) implements InsertHandler<LookupElement> {
 
         /**
          * Keyword Only Insert Handler
@@ -983,7 +1296,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          * @param template template
          * @since 1.0.0
          */
-        public KeywordOnlyInsertHandler(@NotNull TagTemplate template) {
+        private KeywordOnlyInsertHandler(@NotNull TagTemplate template) {
             this.template = template;
         }
 
@@ -1011,13 +1324,13 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                 if (deleteStart < startOffset) {
                     document.deleteString(deleteStart, startOffset);
                 }
-                
+
                 // 获取当前行的缩进
                 String indent = this.getCurrentLineIndent(document, deleteStart);
 
                 // 生成基本模板(不包含具体表达式)
                 String templateContent = this.generateBasicTemplate();
-                
+
                 // 应用缩进到模板的每一行
                 templateContent = this.applyIndent(templateContent, indent);
 
@@ -1029,9 +1342,11 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                 if (cursorPos >= 0) {
                     int finalCursorPos = deleteStart + cursorPos;
                     document.deleteString(finalCursorPos, finalCursorPos + "{cursor}".length());
-                    editor.getCaretModel().moveToOffset(finalCursorPos);
+                    editor.getCaretModel()
+                            .moveToOffset(finalCursorPos);
                 } else {
-                    editor.getCaretModel().moveToOffset(deleteStart + templateContent.length());
+                    editor.getCaretModel()
+                            .moveToOffset(deleteStart + templateContent.length());
                 }
             });
         }
@@ -1047,7 +1362,8 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
         private int findKeywordStart(@NotNull Document document, int offset) {
             int pos = offset - 1;
             while (pos > 0) {
-                char c = document.getCharsSequence().charAt(pos);
+                char c = document.getCharsSequence()
+                        .charAt(pos);
                 if (Character.isWhitespace(c) || c == '>' || c == '{') {
                     return pos + 1;
                 }
@@ -1066,13 +1382,13 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          */
         private String getCurrentLineIndent(@NotNull Document document, int offset) {
             CharSequence chars = document.getCharsSequence();
-            
+
             // 向前查找到行首
             int lineStart = offset;
             while (lineStart > 0 && chars.charAt(lineStart - 1) != '\n') {
                 lineStart--;
             }
-            
+
             // 提取行首的空白字符
             StringBuilder indent = new StringBuilder();
             for (int i = lineStart; i < offset && i < chars.length(); i++) {
@@ -1083,7 +1399,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                     break;
                 }
             }
-            
+
             return indent.toString();
         }
 
@@ -1099,10 +1415,10 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
             if (indent.isEmpty()) {
                 return template;
             }
-            
+
             String[] lines = template.split("\n", -1);
             StringBuilder result = new StringBuilder();
-            
+
             for (int i = 0; i < lines.length; i++) {
                 if (i > 0) {
                     result.append("\n");
@@ -1113,7 +1429,7 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
                 }
                 result.append(lines[i]);
             }
-            
+
             return result.toString();
         }
 
@@ -1125,17 +1441,27 @@ public class TagTemplateCompletionStrategy implements CompletionStrategy {
          */
         private String generateBasicTemplate() {
             String keyword = this.template.getKeyword();
-            
+
             // 根据不同的关键字生成不同的模板
             return switch (keyword) {
+                case "value" -> "#{}";
                 case "if" -> "<if test=\"\">\n    {cursor}\n</if>";
                 case "ifnull" -> "<if test=\" == null or  == ''\">\n    {cursor}\n</if>";
                 case "when" -> "<when test=\"\">\n    {cursor}\n</when>";
-                case "for", "foreach" -> "<foreach collection=\"\" item=\"item\" separator=\",\">\n    {cursor}\n</foreach>";
+                case "for" ->
+                        "<if test=\" != null and .size() > 0\">\n    <foreach collection=\"\" item=\"item\" separator=\",\">\n        " +
+                                "{cursor}\n    </foreach>\n</if>";
+                case "foreach" ->
+                        "<if test=\" != null and .size() > 0\">\n    <foreach collection=\"\" item=\"item\" index=\"index\" separator=\"," +
+                                "\" open=\"(\" close=\")\">\n        {cursor}\n    </foreach>\n</if>";
                 case "where" -> "<where>\n    {cursor}\n</where>";
                 case "set" -> "<set>\n    {cursor}\n</set>";
-                case "choose" -> "<choose>\n    <when test=\"\">\n        {cursor}\n    </when>\n    <otherwise>\n        \n    </otherwise>\n</choose>";
-                default -> this.template.getTemplate().replace("{expression}", "").replace("{field}", "");
+                case "choose" ->
+                        "<choose>\n    <when test=\"\">\n        {cursor}\n    </when>\n    <otherwise>\n        \n    " +
+                                "</otherwise>\n</choose>";
+                default -> this.template.getTemplate()
+                        .replace("{expression}", "")
+                        .replace("{field}", "");
             };
         }
     }

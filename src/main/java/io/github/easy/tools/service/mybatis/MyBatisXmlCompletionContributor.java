@@ -13,7 +13,9 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.patterns.PlatformPatterns;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlAttributeValue;
@@ -395,10 +397,17 @@ public class MyBatisXmlCompletionContributor extends CompletionContributor {
         @NotNull
         private TextExtractionResult getCurrentText(@NotNull CompletionParameters parameters,
                                                     boolean isInTextContent) {
-            // 从CompletionParameters获取editor和offset,这样可以正确处理injected language
-            Editor editor = parameters.getEditor();
+            // 使用position所在的PSI文件获取文档，避免injected language场景下offset越界
+            PsiFile psiFile = parameters.getOriginalFile();
+            Document document = PsiDocumentManager.getInstance(psiFile.getProject()).getDocument(psiFile);
+            if (document == null) {
+                return new TextExtractionResult("", -1, -1);
+            }
             int offset = parameters.getOffset();
-            Document document = editor.getDocument();
+            // 边界保护：确保offset不超过文档长度
+            if (offset < 0 || offset > document.getTextLength()) {
+                return new TextExtractionResult("", -1, -1);
+            }
 
             // 检查是否在XML文本内容中
             if (isInTextContent) {

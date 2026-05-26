@@ -3,9 +3,16 @@ plugins {
     id 'org.jetbrains.intellij.platform'
 }
 
+import org.gradle.internal.os.OperatingSystem
+import org.jetbrains.intellij.platform.gradle.tasks.BuildSearchableOptionsTask
+import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
+
 // 配置构建时显示更清晰的信息
 group = providers.gradleProperty('pluginGroup').get()
 version = providers.gradleProperty('pluginVersion').get()
+
+def localIdeaPath = '/Applications/IntelliJ IDEA.app'
+def useLocalIntellijPlatform = OperatingSystem.current().isMacOsX() && file(localIdeaPath).exists()
 
 repositories {
     // 优先使用本地Maven仓库
@@ -27,19 +34,23 @@ repositories {
     // IntelliJ Platform 仓库（使用JetBrains Cache Redirector加速）
     intellijPlatform {
         defaultRepositories()
-        // 使用本地 IDE 时，需要 localPlatformArtifacts 来处理本地依赖
-//        localPlatformArtifacts()
+        if (useLocalIntellijPlatform) {
+            // 使用本地 IDE 时，需要 localPlatformArtifacts 来处理本地依赖
+            localPlatformArtifacts()
+        }
     }
 }
 
 dependencies {
     // IntelliJ Platform依赖 (2.x新语法)
     intellijPlatform {
-        // 使用本地安装的 IDEA 作为测试平台（Mac）
-        local('/Applications/IntelliJ IDEA.app')
-
-        // 如需切换回下载版本，使用以下配置：
-        // create(providers.gradleProperty('platformType').get(), providers.gradleProperty('platformVersion').get())
+        if (useLocalIntellijPlatform) {
+            // macOS 且默认 IDEA 路径存在时，优先使用本地 IDE
+            local(localIdeaPath)
+        } else {
+            // 其他环境或本地 IDE 不存在时，回退到下载平台版本
+            create(providers.gradleProperty('platformType').get(), providers.gradleProperty('platformVersion').get())
+        }
 
         // 绑定插件
         bundledPlugin('com.intellij.java')
@@ -86,6 +97,20 @@ tasks {
     }
 }
 
+def disabledCoroutinesAgent = layout.projectDirectory.file('.intellijPlatform/disabled-coroutines-javaagent.jar')
+
+tasks.withType(RunIdeTask).configureEach {
+    // Work around a 2026.1 startup failure caused by the generated coroutines agent jar.
+    coroutinesJavaAgentFile.set(disabledCoroutinesAgent)
+    systemProperty 'idea.ui.icons.svg.disk.cache', 'false'
+}
+
+tasks.withType(BuildSearchableOptionsTask).configureEach {
+    // Searchable options launch a headless IDE and hit the same broken agent initialization path.
+    coroutinesJavaAgentFile.set(disabledCoroutinesAgent)
+    systemProperty 'idea.ui.icons.svg.disk.cache', 'false'
+}
+
 // 配置IntelliJ平台插件 2.x
 // 支持版本范围: 2020.3 (203) - 2026.1 (261)
 // 测试版本说明:
@@ -104,6 +129,8 @@ tasks {
 // 注意: 为了支持Python PSI类，同时依赖PyCharm Community Edition
 // 这样可以在编译时解析Python相关类，运行时插件仍然可以在IntelliJ IDEA中使用
 intellijPlatform {
+    buildSearchableOptions = false
+
     pluginConfiguration {
         name = providers.gradleProperty('pluginName')
         version = providers.gradleProperty('pluginVersion')
